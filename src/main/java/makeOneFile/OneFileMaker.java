@@ -13,7 +13,7 @@ public class OneFileMaker {
     private static final String PACKAGE_PATH = "/Users/mohamed/project/codingame/pac/Pac-Spring-Challenge-2020/src/main/java/codingame";
     private static final String REQUIRED_PACKAGE_FILE = "/Users/mohamed/project/codingame/pac/Pac-Spring-Challenge-2020/src/main/resources/requiredPackage.cfg";
 
-    private static final int UPDATE_RANGE_IN_SECOND = 10; //seconds
+    private static final int UPDATE_RANGE_IN_SECOND = 5; //seconds
 
     public static void main(final String[] args) {
         while (true) {
