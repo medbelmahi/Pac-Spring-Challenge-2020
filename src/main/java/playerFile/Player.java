@@ -77,11 +77,9 @@ class Pacman {
         this.position = position;
     }
 
-    public void doAction(LinkedList<Pellet> pellets, LinkedList<Pellet> superPellets) {
-        Pellet target;
-        if (!superPellets.isEmpty()) {
-            target = superPellets.pop();
-        } else {
+    public void doAction(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
+        Pellet target = null;
+        if (!pellets.isEmpty()) {
             if (binary) {
                 target = pellets.peek();
                 binary = false;
@@ -90,7 +88,12 @@ class Pacman {
                 binary = true;
             }
         }
-        this.currentAction = new MoveAction(target.getCoord(), false);
+        if (target != null) {
+            this.currentAction = new MoveAction(target.getCoord(), false);
+        } else {
+            Coord destination = grid.randomFloor().getCoordinates();
+            this.currentAction = new MoveAction(destination, false);
+        }
     }
 
     public int getId() {
@@ -124,6 +127,10 @@ class Pacman {
 
     public String printAction() {
         return this.currentAction.print(this.id);
+    }
+
+    public boolean available() {
+        return !hasAction() && !isDead();
     }
 }
 
@@ -435,7 +442,7 @@ class FindOptimalPath<T extends Floor> {
         }
     }
 
-    public static void main(final String[] args) {
+    /*public static void main(final String[] args) {
         final GraphFindAllPaths<Floor> graph = new GraphFindAllPaths<>();
 
         final Floor here = new Floor(new Coord(0, 0));
@@ -480,7 +487,7 @@ class FindOptimalPath<T extends Floor> {
             System.out.println(floor.getCoordinates().toString());
         }
 
-    }
+    }*/
 
 
 
@@ -523,6 +530,15 @@ class Grid {
             }
             System.err.println("|");
         }
+    }
+
+    public Floor randomFloor() {
+        int index = (int) (Math.random() * (this.places.size()));
+        Iterator<Floor> iterator = this.places.iterator();
+        for (int i = 0; i < index; i++) {
+            iterator.next();
+        }
+        return iterator.next();
     }
 }
 
@@ -921,7 +937,7 @@ class Game {
     private Gamer me;
     private Gamer opponent;
     private LinkedList<Pellet> pellets;
-    private LinkedList<Pellet> superPellets;
+    private Set<Pellet> superPellets;
 
     public Game(Grid grid){
         this.grid = grid;
@@ -940,17 +956,15 @@ class Game {
         this.opponent = opponent;
     }
 
-    public void play() {
-        me.play(pellets, superPellets);
-        /*Pellet pellet = pellets.pop();
-        return "MOVE 0 " + pellet.getCoord().print();*/
+    public String play() {
+        return me.play(pellets, superPellets, grid);
     }
 
     public void setPellets(LinkedList<Pellet> pellets) {
         this.pellets = pellets;
     }
 
-    public void setSuperPellets(LinkedList<Pellet> superPellets) {
+    public void setSuperPellets(Set<Pellet> superPellets) {
         this.superPellets = superPellets;
     }
 }
@@ -998,37 +1012,31 @@ class Gamer {
         this.score = score;
     }
 
-    public void play(LinkedList<Pellet> pellets, LinkedList<Pellet> superPellets) {
-        String actions = "";
-
-        for (int i = 0; i < pacmen.size(); i++) {
-            if (!superPellets.isEmpty()) {
-                Pellet pellet = superPellets.pop();
-                Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(p -> !p.hasAction()).collect(Collectors.toList()));
-                if (pacman == null) {
-                    break;
-                }
+    public String play(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
+        this.pacmen = getAlivePacmen().collect(Collectors.toList());
+        int size = pacmen.size();
+        Iterator<Pellet> pelletIterator = superPellets.iterator();
+        for (int i = 0; i < size; i++) {
+            if (pelletIterator.hasNext()) {
+                Pellet pellet = pelletIterator.next();
+                Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(Pacman::available));
                 pacman.setAction(new MoveAction(pellet.getCoord(), false));
-            }else {
-                pacmen.stream().filter(p -> !p.hasAction()).forEach(pacman -> pacman.doAction(pellets, superPellets));
-                break;
             }
         }
+        pacmen.stream().filter(Pacman::available).forEach(pacman -> pacman.doAction(pellets, superPellets, grid));
 
-        for (Pacman pacman : pacmen) {
-            if (pacman.getId() == 0) {
-                actions += pacman.printAction();
-            } else {
-                actions += "|" + pacman.printAction();
-            }
-        }
-        System.out.println(actions);
+        List<String> actionsList = new ArrayList<>();
+        getAlivePacmen().forEach(pacman -> actionsList.add(pacman.printAction()));
+
+        return String.join(" | ", actionsList);
     }
 
-    private Pacman getNearestPacman(Pellet pellet, List<Pacman> pacmen) {
+    private Pacman getNearestPacman(Pellet pellet, Stream<Pacman> pacmen) {
         Pacman target = null;
         double minDistance = Integer.MAX_VALUE;
-        for (Pacman pacman : pacmen) {
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
             double distance = pacman.distance(pellet.getCoord());
             if (minDistance > distance) {
                 minDistance = distance;
@@ -1047,7 +1055,7 @@ class Gamer {
  **/
 class Player {
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws InterruptedException {
         Scanner in = new Scanner(System.in);
         int width = in.nextInt(); // size of the grid
         int height = in.nextInt(); // top left corner is (x=0, y=0)
@@ -1107,7 +1115,7 @@ class Player {
         }
 
         LinkedList<Pellet> pellets = new LinkedList<>();
-        LinkedList<Pellet> superPellets = new LinkedList<>();
+        Set<Pellet> superPellets = new HashSet<>();
         Map<Coord, Pellet> pelletMap = new HashMap<>();
         int visiblePelletCount = in.nextInt(); // all pellets in sight
         for (int i = 0; i < visiblePelletCount; i++) {
@@ -1126,7 +1134,7 @@ class Player {
         }
         game.setPellets(pellets);
         game.setSuperPellets(superPellets);
-        game.play(); // MOVE <pacId> <x> <y>
+        System.out.println(game.play());
         printEndTime(startTime, "First Tour");
         // Start First Tour -------------------------------------------------------------------------------------------
 
@@ -1164,10 +1172,11 @@ class Player {
                     pacman.update();
                 }
             }
+            setDeadPacmen(pacmanMap.values(), tour);
             visiblePelletCount = in.nextInt(); // all pellets in sight
 
-            pellets = new LinkedList<>();
-            superPellets = new LinkedList<>();
+            pellets.clear();
+            superPellets.clear();
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
@@ -1185,9 +1194,13 @@ class Player {
             // Write an action using System.out.println()
             // To debug: System.err.println("Debug messages...");
 
-            game.play(); // MOVE <pacId> <x> <y>
+            System.out.println(game.play());
             printEndTime(startTime, "Tour number ("+tour +")");
         }
+    }
+
+    private static void setDeadPacmen(Collection<Pacman> pacmen, int currentTour) {
+        pacmen.forEach(pacman -> pacman.setDead(currentTour));
     }
 
     private static void printEndTime(long startTime, String message) {

@@ -111,7 +111,7 @@ public class FindOptimalPath<T extends Floor> {
         }
     }
 
-    public static void main(final String[] args) {
+    /*public static void main(final String[] args) {
         final GraphFindAllPaths<Floor> graph = new GraphFindAllPaths<>();
 
         final Floor here = new Floor(new Coord(0, 0));
@@ -156,7 +156,7 @@ public class FindOptimalPath<T extends Floor> {
             System.out.println(floor.getCoordinates().toString());
         }
 
-    }
+    }*/
 
 
 

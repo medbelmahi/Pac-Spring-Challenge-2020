@@ -3,6 +3,7 @@ package codingame.pac;
 import codingame.Pellet;
 
 import java.util.LinkedList;
+import java.util.Set;
 
 public class Game {
     Grid grid;
@@ -10,7 +11,7 @@ public class Game {
     private Gamer me;
     private Gamer opponent;
     private LinkedList<Pellet> pellets;
-    private LinkedList<Pellet> superPellets;
+    private Set<Pellet> superPellets;
 
     public Game(Grid grid){
         this.grid = grid;
@@ -29,17 +30,15 @@ public class Game {
         this.opponent = opponent;
     }
 
-    public void play() {
-        me.play(pellets, superPellets);
-        /*Pellet pellet = pellets.pop();
-        return "MOVE 0 " + pellet.getCoord().print();*/
+    public String play() {
+        return me.play(pellets, superPellets, grid);
     }
 
     public void setPellets(LinkedList<Pellet> pellets) {
         this.pellets = pellets;
     }
 
-    public void setSuperPellets(LinkedList<Pellet> superPellets) {
+    public void setSuperPellets(Set<Pellet> superPellets) {
         this.superPellets = superPellets;
     }
 }

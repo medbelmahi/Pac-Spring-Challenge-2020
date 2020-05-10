@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  **/
 public class Player {
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws InterruptedException {
         Scanner in = new Scanner(System.in);
         int width = in.nextInt(); // size of the grid
         int height = in.nextInt(); // top left corner is (x=0, y=0)
@@ -78,7 +78,7 @@ public class Player {
         }
 
         LinkedList<Pellet> pellets = new LinkedList<>();
-        LinkedList<Pellet> superPellets = new LinkedList<>();
+        Set<Pellet> superPellets = new HashSet<>();
         Map<Coord, Pellet> pelletMap = new HashMap<>();
         int visiblePelletCount = in.nextInt(); // all pellets in sight
         for (int i = 0; i < visiblePelletCount; i++) {
@@ -97,7 +97,7 @@ public class Player {
         }
         game.setPellets(pellets);
         game.setSuperPellets(superPellets);
-        game.play(); // MOVE <pacId> <x> <y>
+        System.out.println(game.play());
         printEndTime(startTime, "First Tour");
         // Start First Tour -------------------------------------------------------------------------------------------
 
@@ -135,10 +135,11 @@ public class Player {
                     pacman.update();
                 }
             }
+            setDeadPacmen(pacmanMap.values(), tour);
             visiblePelletCount = in.nextInt(); // all pellets in sight
 
-            pellets = new LinkedList<>();
-            superPellets = new LinkedList<>();
+            pellets.clear();
+            superPellets.clear();
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
@@ -156,9 +157,13 @@ public class Player {
             // Write an action using System.out.println()
             // To debug: System.err.println("Debug messages...");
 
-            game.play(); // MOVE <pacId> <x> <y>
+            System.out.println(game.play());
             printEndTime(startTime, "Tour number ("+tour +")");
         }
+    }
+
+    private static void setDeadPacmen(Collection<Pacman> pacmen, int currentTour) {
+        pacmen.forEach(pacman -> pacman.setDead(currentTour));
     }
 
     private static void printEndTime(long startTime, String message) {

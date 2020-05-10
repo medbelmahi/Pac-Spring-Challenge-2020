@@ -5,6 +5,7 @@ import codingame.pac.action.Action;
 import codingame.pac.action.MoveAction;
 
 import java.util.LinkedList;
+import java.util.Set;
 
 public class Pacman {
     private Gamer owner;
@@ -58,11 +59,9 @@ public class Pacman {
         this.position = position;
     }
 
-    public void doAction(LinkedList<Pellet> pellets, LinkedList<Pellet> superPellets) {
-        Pellet target;
-        if (!superPellets.isEmpty()) {
-            target = superPellets.pop();
-        } else {
+    public void doAction(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
+        Pellet target = null;
+        if (!pellets.isEmpty()) {
             if (binary) {
                 target = pellets.peek();
                 binary = false;
@@ -71,7 +70,12 @@ public class Pacman {
                 binary = true;
             }
         }
-        this.currentAction = new MoveAction(target.getCoord(), false);
+        if (target != null) {
+            this.currentAction = new MoveAction(target.getCoord(), false);
+        } else {
+            Coord destination = grid.randomFloor().getCoordinates();
+            this.currentAction = new MoveAction(destination, false);
+        }
     }
 
     public int getId() {
@@ -105,5 +109,9 @@ public class Pacman {
 
     public String printAction() {
         return this.currentAction.print(this.id);
+    }
+
+    public boolean available() {
+        return !hasAction() && !isDead();
     }
 }

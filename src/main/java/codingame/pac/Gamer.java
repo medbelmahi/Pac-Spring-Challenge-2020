@@ -4,8 +4,10 @@ import codingame.Pellet;
 import codingame.pac.action.MoveAction;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -41,37 +43,31 @@ public class Gamer {
         this.score = score;
     }
 
-    public void play(LinkedList<Pellet> pellets, LinkedList<Pellet> superPellets) {
-        String actions = "";
-
-        for (int i = 0; i < pacmen.size(); i++) {
-            if (!superPellets.isEmpty()) {
-                Pellet pellet = superPellets.pop();
-                Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(p -> !p.hasAction()).collect(Collectors.toList()));
-                if (pacman == null) {
-                    break;
-                }
+    public String play(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
+        this.pacmen = getAlivePacmen().collect(Collectors.toList());
+        int size = pacmen.size();
+        Iterator<Pellet> pelletIterator = superPellets.iterator();
+        for (int i = 0; i < size; i++) {
+            if (pelletIterator.hasNext()) {
+                Pellet pellet = pelletIterator.next();
+                Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(Pacman::available));
                 pacman.setAction(new MoveAction(pellet.getCoord(), false));
-            }else {
-                pacmen.stream().filter(p -> !p.hasAction()).forEach(pacman -> pacman.doAction(pellets, superPellets));
-                break;
             }
         }
+        pacmen.stream().filter(Pacman::available).forEach(pacman -> pacman.doAction(pellets, superPellets, grid));
 
-        for (Pacman pacman : pacmen) {
-            if (pacman.getId() == 0) {
-                actions += pacman.printAction();
-            } else {
-                actions += "|" + pacman.printAction();
-            }
-        }
-        System.out.println(actions);
+        List<String> actionsList = new ArrayList<>();
+        getAlivePacmen().forEach(pacman -> actionsList.add(pacman.printAction()));
+
+        return String.join(" | ", actionsList);
     }
 
-    private Pacman getNearestPacman(Pellet pellet, List<Pacman> pacmen) {
+    private Pacman getNearestPacman(Pellet pellet, Stream<Pacman> pacmen) {
         Pacman target = null;
         double minDistance = Integer.MAX_VALUE;
-        for (Pacman pacman : pacmen) {
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
             double distance = pacman.distance(pellet.getCoord());
             if (minDistance > distance) {
                 minDistance = distance;

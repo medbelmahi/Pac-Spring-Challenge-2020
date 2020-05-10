@@ -4,6 +4,7 @@ import codingame.pac.cell.Cell;
 import codingame.pac.cell.Floor;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,5 +34,14 @@ public class Grid {
             }
             System.err.println("|");
         }
+    }
+
+    public Floor randomFloor() {
+        int index = (int) (Math.random() * (this.places.size()));
+        Iterator<Floor> iterator = this.places.iterator();
+        for (int i = 0; i < index; i++) {
+            iterator.next();
+        }
+        return iterator.next();
     }
 }
