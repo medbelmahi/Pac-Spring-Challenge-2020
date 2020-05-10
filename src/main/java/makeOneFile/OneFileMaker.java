@@ -10,6 +10,7 @@ import java.util.Date;
 public class OneFileMaker {
 
     private static final String PLAYER_FILE_PATH = "/Users/mohamed/project/codingame/pac/Pac-Spring-Challenge-2020/src/main/java/playerFile/Player.java";
+    private static final String PLAYER_FILE_PATH_2 = "/Users/mohamed/project/codingame/pac/SpringChallenge2020/src/test/java/Player.java";
     private static final String PACKAGE_PATH = "/Users/mohamed/project/codingame/pac/Pac-Spring-Challenge-2020/src/main/java/codingame";
     private static final String REQUIRED_PACKAGE_FILE = "/Users/mohamed/project/codingame/pac/Pac-Spring-Challenge-2020/src/main/resources/requiredPackage.cfg";
 
@@ -26,7 +27,8 @@ public class OneFileMaker {
 
             content += filesContent(projectPackage);
 
-            makePlayerFile(content);
+            makePlayerFile(content, PLAYER_FILE_PATH);
+            makePlayerFile(content, PLAYER_FILE_PATH_2);
 
             try {
                 Thread.sleep(UPDATE_RANGE_IN_SECOND * 1000);
@@ -37,8 +39,8 @@ public class OneFileMaker {
 
     }
 
-    private static void makePlayerFile(final String content) {
-        final File file = new File(PLAYER_FILE_PATH);
+    private static void makePlayerFile(final String content, final String playerFilePath) {
+        final File file = new File(playerFilePath);
 
         try (FileOutputStream fop = new FileOutputStream(file)) {
 

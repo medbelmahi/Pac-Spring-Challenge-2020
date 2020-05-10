@@ -22,6 +22,21 @@ public enum PacmanType {
                 .orElse(null);
     }
 
+    public static PacmanType fromInput(String input) {
+        switch (input) {
+            case "ROCK":
+                return ROCK;
+            case "PAPER":
+                return PAPER;
+            case "SCISSORS":
+                return SCISSORS;
+            case "NEUTRAL":
+                return NEUTRAL;
+
+        }
+        throw new RuntimeException(input + " is not a valid pac type");
+    }
+
     public static PacmanType fromCharacter(char c) {
         switch (c) {
             case 'r':

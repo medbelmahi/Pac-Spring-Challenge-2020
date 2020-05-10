@@ -8,7 +8,12 @@ public class SpeedAction implements Action {
       return ActionType.SPEED;
   }
 
-  @Override
+    @Override
+    public String print(int id) {
+        return null;
+    }
+
+    @Override
   public PacmanType getType() {
       return null;
   }

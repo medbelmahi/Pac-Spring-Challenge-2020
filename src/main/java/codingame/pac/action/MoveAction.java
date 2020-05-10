@@ -25,4 +25,8 @@ public class MoveAction implements Action {
     public ActionType getActionType() {
         return ActionType.MOVE;
     }
+
+    public String print(int pacmanId) {
+        return getActionType().toString() + " " + pacmanId + " " + destination.print();
+    }
 }

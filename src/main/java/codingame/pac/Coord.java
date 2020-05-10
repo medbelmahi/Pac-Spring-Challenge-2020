@@ -1,5 +1,9 @@
 package codingame.pac;
 
+import codingame.pac.graph.Direction;
+
+import java.util.LinkedList;
+
 public class Coord {
     protected final int x;
     protected final int y;
@@ -81,5 +85,79 @@ public class Coord {
         int newX = this.x == 0 ? 0 : this.x / Math.abs(this.x);
         int newY = this.y == 0 ? 0 : this.y / Math.abs(this.y);
         return new Coord(newX, newY);
+    }
+
+    public LinkedList<Direction> getSortedDirection(Coord destination) {
+
+        LinkedList<Direction> directions = new LinkedList<>();
+
+        if (this.y == destination.y) {
+            if (this.x < destination.x) {
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.DOWN);
+                directions.add(Direction.UP);
+                directions.add(Direction.LEFT);
+            }else{
+                directions.add(Direction.LEFT);
+                directions.add(Direction.DOWN);
+                directions.add(Direction.UP);
+                directions.add(Direction.RIGHT);
+            }
+        } else if (this.x == destination.x) {
+            if (this.y < destination.y) {
+                directions.add(Direction.DOWN);
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.LEFT);
+                directions.add(Direction.UP);
+            }else{
+                directions.add(Direction.UP);
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.LEFT);
+                directions.add(Direction.DOWN);
+            }
+        } else if (this.x < destination.x && this.y < destination.y) {
+            int diffX = destination.x - this.x;
+            int diffY = destination.y - this.y;
+
+            if (diffX < diffY) {
+                directions.add(Direction.DOWN);
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.LEFT);
+                directions.add(Direction.UP);
+            }else{
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.DOWN);
+                directions.add(Direction.LEFT);
+                directions.add(Direction.UP);
+            }
+        }else if (this.x > destination.x && this.y > destination.y) {
+            int diffX = destination.x - this.x;
+            int diffY = destination.y - this.y;
+
+            if (diffX < diffY) {
+                directions.add(Direction.LEFT);
+                directions.add(Direction.UP);
+                directions.add(Direction.DOWN);
+                directions.add(Direction.RIGHT);
+            }else{
+                directions.add(Direction.UP);
+                directions.add(Direction.RIGHT);
+                directions.add(Direction.DOWN);
+                directions.add(Direction.RIGHT);
+            }
+        }else if (this.x < destination.x && this.y > destination.y){
+            directions.add(Direction.LEFT);
+            directions.add(Direction.UP);
+            directions.add(Direction.DOWN);
+            directions.add(Direction.RIGHT);
+        }if (this.x > destination.x && this.y < destination.y){
+            directions.add(Direction.LEFT);
+            directions.add(Direction.DOWN);
+            directions.add(Direction.UP);
+            directions.add(Direction.RIGHT);
+        }
+
+
+        return directions;
     }
 }

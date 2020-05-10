@@ -15,8 +15,15 @@ public interface Action {
         public ActionType getActionType() {
             return ActionType.WAIT;
         }
+
+        @Override
+        public String print(int id) {
+            return ActionType.WAIT.toString() + " " + id;
+        }
     };
 
     public PacmanType getType();
     public ActionType getActionType();
+
+    String print(int id);
 }

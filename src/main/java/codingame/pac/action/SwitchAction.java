@@ -24,4 +24,9 @@ public class SwitchAction implements Action {
     public ActionType getActionType() {
         return ActionType.SWITCH;
     }
+
+    @Override
+    public String print(int id) {
+        return null;
+    }
 }
