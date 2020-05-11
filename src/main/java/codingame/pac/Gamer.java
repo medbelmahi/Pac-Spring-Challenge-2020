@@ -2,11 +2,14 @@ package codingame.pac;
 
 import codingame.Pellet;
 import codingame.pac.action.MoveAction;
+import codingame.pac.cell.Cell;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,9 +19,11 @@ public class Gamer {
     private int score;
     public int pellets = 0;
     private boolean timeout;
+    private Grid grid;
 
-    public Gamer() {
+    public Gamer(Grid grid) {
         pacmen = new ArrayList<>();
+        this.grid = grid;
     }
 
     public void addPacman(Pacman pacman) {
@@ -39,7 +44,10 @@ public class Gamer {
     }
 
 
-    public void setScore(int score) {
+    public void setScore(int score, Game game) {
+        if ((score - this.score) > 5) {
+            game.decreaseSuperPellets();
+        }
         this.score = score;
     }
 
@@ -75,5 +83,24 @@ public class Gamer {
             }
         }
         return target;
+    }
+
+    public void updatePellets(Map<Coord, Pellet> newVisiblePellets, Cell[][] cells) {
+       Set<Coord> visibleCoords = getAllVisibleCoords(getAlivePacmen(), cells);
+        for (Coord visibleCoord : visibleCoords) {
+            Pellet pellet = newVisiblePellets.get(visibleCoord);
+            if (pellet == null) {
+                Cell cell = cells[visibleCoord.x][visibleCoord.y];
+                cell.noPellet();
+            }
+        }
+    }
+
+    private Set<Coord> getAllVisibleCoords(Stream<Pacman> alivePacmen, Cell[][] cells) {
+        Set<Coord> visibleCoords = new HashSet<>();
+        alivePacmen.forEach(pacman -> {
+            pacman.myVisibleCells(cells).forEach(cell -> visibleCoords.add(cell.getCoordinates()));
+        });
+        return visibleCoords;
     }
 }

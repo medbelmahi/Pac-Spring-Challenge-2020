@@ -10,14 +10,32 @@ import java.util.concurrent.TimeUnit;
 class Pellet {
     private Coord coord;
     private int amount;
+    private boolean stillHere;
 
     public Pellet(Coord coord, int amount) {
         this.coord = coord;
         this.amount = amount;
+        this.stillHere = true;
     }
 
     public Coord getCoord() {
         return coord;
+    }
+
+    public boolean isSuper() {
+        return amount > 1;
+    }
+
+    public void setStillHere(boolean stillHere) {
+        this.stillHere = stillHere;
+    }
+
+    public boolean isStillHere() {
+        return stillHere;
+    }
+
+    public void disappear() {
+        this.stillHere = false;
     }
 }
 
@@ -46,7 +64,7 @@ class Pacman {
         this.speedTurnsLeft = speedTurnsLeft;
         this.abilityCooldown = abilityCooldown;
         this.setType(type);
-        owner.getPacmen().add(this);
+        owner.addPacman(this);
         this.tour = tour;
     }
 
@@ -131,6 +149,31 @@ class Pacman {
 
     public boolean available() {
         return !hasAction() && !isDead();
+    }
+
+    public Set<Cell> myVisibleCells(Cell[][] cells) {
+        Set<Cell> visibleCells = new HashSet<>();
+        int baseX = position.x;
+        int baseY = position.y;
+
+        for (int x = baseX + 1; x < Grid.width; x++) {
+            if (cells[x][baseY].isWall()) break;
+             visibleCells.add(cells[x][baseY]);
+        }
+        for (int x = baseX - 1; x >= 0; x--) {
+            if (cells[x][baseY].isWall()) break;
+            visibleCells.add(cells[x][baseY]);
+        }
+
+        for (int y = baseY + 1; y < Grid.height; y++) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        for (int y = baseY - 1; y >= 0; y--) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        return visibleCells;
     }
 }
 
@@ -740,17 +783,61 @@ class CellPrototype {
 
 
 class Floor extends Cell {
+    private boolean hasPellet;
+    private boolean hasCherry;
+    private Pellet pellet;
+    private boolean hiddenPellet;
     public Floor(Coord coord) {
         super(coord);
+        hiddenPellet = true;
     }
 
     @Override
     public String toString() {
+        if (hiddenPellet) {
+            return "?";
+        }
+        if (pellet != null) {
+            if (!pellet.isStillHere()) {
+                return " ";
+            } else {
+                return pellet.isSuper() ? "O" : "o";
+            }
+        }
         return " ";
     }
 
     public <T extends Floor> LinkedList<Direction> getDirections(final T destination) {
         return this.getCoordinates().getSortedDirection(destination.getCoordinates());
+    }
+
+    public boolean hasPellet() {
+        return !isHiddenPellet() && pellet != null && pellet.isStillHere();
+    }
+
+    public boolean hasCherry() {
+        return !isHiddenPellet() && pellet != null && pellet.isStillHere() && pellet.isSuper();
+    }
+
+    public void setPellet(Pellet pellet) {
+        this.pellet = pellet;
+        this.hiddenPellet = false;
+        this.hasPellet = true;
+        this.hasCherry = pellet.isSuper();
+    }
+
+    public boolean isHiddenPellet() {
+        return hiddenPellet;
+    }
+
+    @Override
+    public void noPellet() {
+        this.hasPellet = false;
+        this.hasCherry = false;
+        this.hiddenPellet = false;
+        if (this.pellet != null) {
+            this.pellet.setStillHere(false);
+        }
     }
 }
 
@@ -801,6 +888,10 @@ class Cell {
 
     public Coord getCoordinates() {
         return coordinates;
+    }
+
+    public void noPellet() {
+        // do noting
     }
 }
 
@@ -933,7 +1024,7 @@ interface Action {
 
 class Game {
     Grid grid;
-
+    private int availableSuperPellets = 4;
     private Gamer me;
     private Gamer opponent;
     private LinkedList<Pellet> pellets;
@@ -967,6 +1058,14 @@ class Game {
     public void setSuperPellets(Set<Pellet> superPellets) {
         this.superPellets = superPellets;
     }
+
+    public boolean isSuperPelletsAvailable() {
+        return availableSuperPellets >= 1;
+    }
+
+    public void decreaseSuperPellets() {
+        this.availableSuperPellets--;
+    }
 }
 
 
@@ -985,9 +1084,11 @@ class Gamer {
     private int score;
     public int pellets = 0;
     private boolean timeout;
+    private Grid grid;
 
-    public Gamer() {
+    public Gamer(Grid grid) {
         pacmen = new ArrayList<>();
+        this.grid = grid;
     }
 
     public void addPacman(Pacman pacman) {
@@ -1008,7 +1109,10 @@ class Gamer {
     }
 
 
-    public void setScore(int score) {
+    public void setScore(int score, Game game) {
+        if ((score - this.score) > 5) {
+            game.decreaseSuperPellets();
+        }
         this.score = score;
     }
 
@@ -1045,6 +1149,25 @@ class Gamer {
         }
         return target;
     }
+
+    public void updatePellets(Map<Coord, Pellet> newVisiblePellets, Cell[][] cells) {
+       Set<Coord> visibleCoords = getAllVisibleCoords(getAlivePacmen(), cells);
+        for (Coord visibleCoord : visibleCoords) {
+            Pellet pellet = newVisiblePellets.get(visibleCoord);
+            if (pellet == null) {
+                Cell cell = cells[visibleCoord.x][visibleCoord.y];
+                cell.noPellet();
+            }
+        }
+    }
+
+    private Set<Coord> getAllVisibleCoords(Stream<Pacman> alivePacmen, Cell[][] cells) {
+        Set<Coord> visibleCoords = new HashSet<>();
+        alivePacmen.forEach(pacman -> {
+            pacman.myVisibleCells(cells).forEach(cell -> visibleCoords.add(cell.getCoordinates()));
+        });
+        return visibleCoords;
+    }
 }
 
 
@@ -1080,12 +1203,10 @@ class Player {
         }
 
         Grid grid = new Grid(cells, places, width, height);
-
-        //grid.printGrid();
         Game game = new Game(grid);
-        Gamer me = new Gamer();
+        Gamer me = new Gamer(grid);
         game.setMe(me);
-        Gamer opponent = new Gamer();
+        Gamer opponent = new Gamer(grid);
         game.setOpponent(opponent);
 
         Map<String, Pacman> pacmanMap = new HashMap<>();
@@ -1093,7 +1214,7 @@ class Player {
         // Start First Tour -------------------------------------------------------------------------------------------
         int tour = 1;
         long startTime = System.nanoTime();
-        setScores(in, me, opponent);
+        setScores(in, me, opponent, game);
 
         int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
         for (int i = 0; i < visiblePacCount; i++) {
@@ -1112,11 +1233,12 @@ class Player {
                 pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
             }
             pacmanMap.put(pacId + "-" + mine, pacman);
+            cells[x][y].noPellet();
         }
 
         LinkedList<Pellet> pellets = new LinkedList<>();
         Set<Pellet> superPellets = new HashSet<>();
-        Map<Coord, Pellet> pelletMap = new HashMap<>();
+        Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
         int visiblePelletCount = in.nextInt(); // all pellets in sight
         for (int i = 0; i < visiblePelletCount; i++) {
             int x = in.nextInt();
@@ -1130,10 +1252,15 @@ class Player {
             } else {
                 pellets.add(pellet);
             }
-            pelletMap.put(coord, pellet);
+            ((Floor) cells[x][y]).setPellet(pellet);
+            newVisiblePellets.put(coord, pellet);
         }
+        me.updatePellets(newVisiblePellets, cells);
         game.setPellets(pellets);
         game.setSuperPellets(superPellets);
+
+        grid.printGrid();
+
         System.out.println(game.play());
         printEndTime(startTime, "First Tour");
         // Start First Tour -------------------------------------------------------------------------------------------
@@ -1144,7 +1271,7 @@ class Player {
         while (true) {
             startTime = System.nanoTime();
             tour++;
-            setScores(in, me, opponent);
+            setScores(in, me, opponent, game);
 
             visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
             for (int i = 0; i < visiblePacCount; i++) {
@@ -1171,28 +1298,37 @@ class Player {
                     pacman.setAbilityCooldown(abilityCooldown);
                     pacman.update();
                 }
+
+                cells[x][y].noPellet();
             }
             setDeadPacmen(pacmanMap.values(), tour);
             visiblePelletCount = in.nextInt(); // all pellets in sight
 
             pellets.clear();
             superPellets.clear();
+            newVisiblePellets.clear();
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
                 int value = in.nextInt(); // amount of points this pellet is worth
 
-                Pellet pellet = new Pellet(new Coord(x, y), value);
+                Coord coord = new Coord(x, y);
+                Pellet pellet = new Pellet(coord, value);
                 if (value == 10) {
                     superPellets.add(pellet);
                 } else {
                     pellets.add(pellet);
                 }
+                ((Floor) cells[x][y]).setPellet(pellet);
+                newVisiblePellets.put(coord, pellet);
             }
+            me.updatePellets(newVisiblePellets, cells);
             game.setPellets(pellets);
             game.setSuperPellets(superPellets);
             // Write an action using System.out.println()
             // To debug: System.err.println("Debug messages...");
+
+            grid.printGrid();
 
             System.out.println(game.play());
             printEndTime(startTime, "Tour number ("+tour +")");
@@ -1208,13 +1344,13 @@ class Player {
         long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
         long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
 
-        System.err.println(message + " = " + durationInMillis + "ms");
+        //System.err.println(message + " = " + durationInMillis + "ms");
     }
 
-    private static void setScores(Scanner in, Gamer me, Gamer opponent) {
+    private static void setScores(Scanner in, Gamer me, Gamer opponent, Game game) {
         int myScore = in.nextInt();
-        me.setScore(myScore);
+        me.setScore(myScore, game);
         int opponentScore = in.nextInt();
-        opponent.setScore(opponentScore);
+        opponent.setScore(opponentScore, game);
     }
 }

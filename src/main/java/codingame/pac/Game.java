@@ -7,7 +7,7 @@ import java.util.Set;
 
 public class Game {
     Grid grid;
-
+    private int availableSuperPellets = 4;
     private Gamer me;
     private Gamer opponent;
     private LinkedList<Pellet> pellets;
@@ -40,5 +40,13 @@ public class Game {
 
     public void setSuperPellets(Set<Pellet> superPellets) {
         this.superPellets = superPellets;
+    }
+
+    public boolean isSuperPelletsAvailable() {
+        return availableSuperPellets >= 1;
+    }
+
+    public void decreaseSuperPellets() {
+        this.availableSuperPellets--;
     }
 }

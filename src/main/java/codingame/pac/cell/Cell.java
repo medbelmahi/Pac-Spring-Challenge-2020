@@ -49,4 +49,8 @@ public class Cell {
     public Coord getCoordinates() {
         return coordinates;
     }
+
+    public void noPellet() {
+        // do noting
+    }
 }

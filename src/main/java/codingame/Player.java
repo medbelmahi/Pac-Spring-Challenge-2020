@@ -43,12 +43,10 @@ public class Player {
         }
 
         Grid grid = new Grid(cells, places, width, height);
-
-        //grid.printGrid();
         Game game = new Game(grid);
-        Gamer me = new Gamer();
+        Gamer me = new Gamer(grid);
         game.setMe(me);
-        Gamer opponent = new Gamer();
+        Gamer opponent = new Gamer(grid);
         game.setOpponent(opponent);
 
         Map<String, Pacman> pacmanMap = new HashMap<>();
@@ -56,7 +54,7 @@ public class Player {
         // Start First Tour -------------------------------------------------------------------------------------------
         int tour = 1;
         long startTime = System.nanoTime();
-        setScores(in, me, opponent);
+        setScores(in, me, opponent, game);
 
         int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
         for (int i = 0; i < visiblePacCount; i++) {
@@ -75,11 +73,12 @@ public class Player {
                 pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
             }
             pacmanMap.put(pacId + "-" + mine, pacman);
+            cells[x][y].noPellet();
         }
 
         LinkedList<Pellet> pellets = new LinkedList<>();
         Set<Pellet> superPellets = new HashSet<>();
-        Map<Coord, Pellet> pelletMap = new HashMap<>();
+        Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
         int visiblePelletCount = in.nextInt(); // all pellets in sight
         for (int i = 0; i < visiblePelletCount; i++) {
             int x = in.nextInt();
@@ -93,10 +92,15 @@ public class Player {
             } else {
                 pellets.add(pellet);
             }
-            pelletMap.put(coord, pellet);
+            ((Floor) cells[x][y]).setPellet(pellet);
+            newVisiblePellets.put(coord, pellet);
         }
+        me.updatePellets(newVisiblePellets, cells);
         game.setPellets(pellets);
         game.setSuperPellets(superPellets);
+
+        grid.printGrid();
+
         System.out.println(game.play());
         printEndTime(startTime, "First Tour");
         // Start First Tour -------------------------------------------------------------------------------------------
@@ -107,7 +111,7 @@ public class Player {
         while (true) {
             startTime = System.nanoTime();
             tour++;
-            setScores(in, me, opponent);
+            setScores(in, me, opponent, game);
 
             visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
             for (int i = 0; i < visiblePacCount; i++) {
@@ -134,28 +138,37 @@ public class Player {
                     pacman.setAbilityCooldown(abilityCooldown);
                     pacman.update();
                 }
+
+                cells[x][y].noPellet();
             }
             setDeadPacmen(pacmanMap.values(), tour);
             visiblePelletCount = in.nextInt(); // all pellets in sight
 
             pellets.clear();
             superPellets.clear();
+            newVisiblePellets.clear();
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
                 int value = in.nextInt(); // amount of points this pellet is worth
 
-                Pellet pellet = new Pellet(new Coord(x, y), value);
+                Coord coord = new Coord(x, y);
+                Pellet pellet = new Pellet(coord, value);
                 if (value == 10) {
                     superPellets.add(pellet);
                 } else {
                     pellets.add(pellet);
                 }
+                ((Floor) cells[x][y]).setPellet(pellet);
+                newVisiblePellets.put(coord, pellet);
             }
+            me.updatePellets(newVisiblePellets, cells);
             game.setPellets(pellets);
             game.setSuperPellets(superPellets);
             // Write an action using System.out.println()
             // To debug: System.err.println("Debug messages...");
+
+            grid.printGrid();
 
             System.out.println(game.play());
             printEndTime(startTime, "Tour number ("+tour +")");
@@ -171,13 +184,13 @@ public class Player {
         long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
         long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
 
-        System.err.println(message + " = " + durationInMillis + "ms");
+        //System.err.println(message + " = " + durationInMillis + "ms");
     }
 
-    private static void setScores(Scanner in, Gamer me, Gamer opponent) {
+    private static void setScores(Scanner in, Gamer me, Gamer opponent, Game game) {
         int myScore = in.nextInt();
-        me.setScore(myScore);
+        me.setScore(myScore, game);
         int opponentScore = in.nextInt();
-        opponent.setScore(opponentScore);
+        opponent.setScore(opponentScore, game);
     }
 }
