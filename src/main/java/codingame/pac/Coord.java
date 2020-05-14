@@ -1,5 +1,7 @@
 package codingame.pac;
 
+import codingame.pac.cell.Cell;
+import codingame.pac.cell.Floor;
 import codingame.pac.graph.Direction;
 
 import java.util.LinkedList;
@@ -141,7 +143,7 @@ public class Coord {
                 directions.add(Direction.RIGHT);
             }else{
                 directions.add(Direction.UP);
-                directions.add(Direction.RIGHT);
+                directions.add(Direction.LEFT);
                 directions.add(Direction.DOWN);
                 directions.add(Direction.RIGHT);
             }
@@ -159,5 +161,14 @@ public class Coord {
 
 
         return directions;
+    }
+
+    public String shortPrint() {
+        return x + ":" + y;
+    }
+
+    public boolean isNeighborOf(Coord destination) {
+        Floor floor = (Floor) Grid.cells[this.x][this.y];
+        return Grid.graph.edgesFrom(floor).keySet().stream().anyMatch(floor1 -> floor1.getCoordinates().equals(destination));
     }
 }

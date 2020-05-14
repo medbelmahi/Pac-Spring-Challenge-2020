@@ -26,7 +26,17 @@ public class SwitchAction implements Action {
     }
 
     @Override
-    public String print(int id) {
+    public String print() {
+        return null;
+    }
+
+    @Override
+    public boolean areSame(Action action) {
+        return false;
+    }
+
+    @Override
+    public String print(int taskTour) {
         return null;
     }
 }

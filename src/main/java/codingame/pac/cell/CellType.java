@@ -1,4 +1,4 @@
-package codingame.pac;
+package codingame.pac.cell;
 
 public enum  CellType {
     WALL, FLOOR;

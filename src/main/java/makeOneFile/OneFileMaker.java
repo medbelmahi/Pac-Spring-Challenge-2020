@@ -27,8 +27,8 @@ public class OneFileMaker {
 
             content += filesContent(projectPackage);
 
-            makePlayerFile(content, PLAYER_FILE_PATH);
-            makePlayerFile(content, PLAYER_FILE_PATH_2);
+            makePlayerFile(content, PLAYER_FILE_PATH, false);
+            makePlayerFile(content, PLAYER_FILE_PATH_2, true);
 
             try {
                 Thread.sleep(UPDATE_RANGE_IN_SECOND * 1000);
@@ -39,9 +39,11 @@ public class OneFileMaker {
 
     }
 
-    private static void makePlayerFile(final String content, final String playerFilePath) {
+    private static void makePlayerFile(String content, final String playerFilePath, boolean addCommentForErr) {
         final File file = new File(playerFilePath);
-
+        if (addCommentForErr) {
+            content = content.replace("System.err", "//System.err");
+        }
         try (FileOutputStream fop = new FileOutputStream(file)) {
 
             // if file doesn't exists, then create it

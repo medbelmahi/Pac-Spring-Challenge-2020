@@ -2,9 +2,11 @@ package codingame.pac.graph;
 
 
 import codingame.pac.Coord;
+import codingame.pac.cell.CellType;
 import codingame.pac.cell.Floor;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by Mohamed BELMAHI on 27/09/2016.
@@ -35,7 +37,7 @@ public class FindOptimalPath<T extends Floor> {
         }
     }
 
-    public List<T> getOptimalPath(final T source, final T destination) {
+    public List<T> getOptimalPath(final T source, final T destination, T exception) {
         try {
             validate(source, destination);
         } catch (IllegalArgumentException e) {
@@ -44,11 +46,11 @@ public class FindOptimalPath<T extends Floor> {
 
         List<T> alreadyList = new ArrayList<>();
 
-        final List<T> path = recursive(source, destination, alreadyList);
+        final List<T> path = recursive(source, destination, alreadyList, exception);
         return path;
     }
 
-    private List<T> recursive(final T current, final T destination, List<T> alreadyList) {
+    private List<T> recursive(final T current, final T destination, List<T> alreadyList, T exception) {
         final List<T> path = new ArrayList<>();
 
         alreadyList.add(current);
@@ -57,26 +59,31 @@ public class FindOptimalPath<T extends Floor> {
             return path;
         }
 
-        //System.err.println("current : " + current.coordinates.toString());
+        //System.err.println("current : " + current.getCoordinates().toString());
         final Map<T, Direction> edges  = graph.edgesFrom(current);
 
-        final LinkedList<Direction> directions = current.getDirections(destination);
+        //final LinkedList<Direction> directions = current.getDirections(destination);
 
+        Set<T> currentFloorEdges = edges.keySet();
+        if (exception != null && alreadyList.size() == 1) {
+            currentFloorEdges = edges.keySet().stream().filter(t -> !t.equals(exception)).collect(Collectors.toSet());
+        }
 
-        for (final Direction direction : directions) {
-            for (final Map.Entry<T, Direction> entry : edges.entrySet()) {
-                T entryKey = entry.getKey();
-                if (direction.equals(entry.getValue()) && !alreadyList.contains(entryKey)) {
-                    if (entryKey != destination) {
-                        path.add(entryKey);
+        Set<T> sortedEdges = current.getSortedEdgesBasedOnDistanceFromTarget(destination, currentFloorEdges);
+
+        for (final T edge : sortedEdges) {
+                if (!alreadyList.contains(edge)) {
+                    if (edge != destination) {
+                        path.add(edge);
                     }
-                    final List<T> recursivePath = recursive(entryKey, destination, alreadyList);
+                    final List<T> recursivePath = recursive(edge, destination, alreadyList, exception);
                     if (!recursivePath.isEmpty() && recursivePath.get(recursivePath.size() - 1) == destination) {
                         path.addAll(recursivePath);
                         return path;
+                    } else {
+                        path.remove(path.size() - 1);
                     }
                 }
-            }
         }
 
         if (!path.isEmpty() && path.get(path.size() - 1) != destination) {
@@ -87,42 +94,42 @@ public class FindOptimalPath<T extends Floor> {
     }
 
 
-    public Map<T, Integer> getPlacesWithDistance(T currentPlace){
+    public Map<T, Integer> getPlacesWithDistance(T currentPlace, T exception){
         Map<T, Integer> places = new HashMap<T, Integer>();
 
         final Map<T, Direction> edges  = graph.edgesFrom(currentPlace);
 
         for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-            recursivePlacesWithDistance(places, currentPlace, entry.getKey());
+            recursivePlacesWithDistance(places, currentPlace, entry.getKey(), exception);
         }
 
         return places;
     }
 
-    private void recursivePlacesWithDistance(Map<T, Integer> places, T currentPlace, T destination) {
+    private void recursivePlacesWithDistance(Map<T, Integer> places, T currentPlace, T destination, T exception) {
         if (places.size() > 10) {
-            places.put(destination, getOptimalPath(currentPlace, destination).size());
+            places.put(destination, getOptimalPath(currentPlace, destination, exception).size());
 
             final Map<T, Direction> edges  = graph.edgesFrom(destination);
 
             for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-                recursivePlacesWithDistance(places, currentPlace, entry.getKey());
+                recursivePlacesWithDistance(places, currentPlace, entry.getKey(), exception);
             }
         }
     }
 
-    /*public static void main(final String[] args) {
+    public static void main(final String[] args) {
         final GraphFindAllPaths<Floor> graph = new GraphFindAllPaths<>();
 
-        final Floor here = new Floor(new Coord(0, 0));
-        final Floor next1 = new Floor(new Coord(0, 1));
-        final Floor next2 = new Floor(new Coord(0, 2));
-        final Floor next3 = new Floor(new Coord(0, 3));
-        final Floor next4 = new Floor(new Coord(0, 4));
-        final Floor next41 = new Floor(new Coord(1, 4));
-        final Floor next5 = new Floor(new Coord(0, 5));
-        final Floor next6 = new Floor(new Coord(0, 6));
-        final Floor next62 = new Floor(new Coord(2, 6));
+        final Floor here = new Floor(new Coord(0, 0), CellType.FLOOR);
+        final Floor next1 = new Floor(new Coord(0, 1), CellType.FLOOR);
+        final Floor next2 = new Floor(new Coord(0, 2), CellType.FLOOR);
+        final Floor next3 = new Floor(new Coord(0, 3), CellType.FLOOR);
+        final Floor next4 = new Floor(new Coord(0, 4), CellType.FLOOR);
+        final Floor next41 = new Floor(new Coord(1, 4), CellType.FLOOR);
+        final Floor next5 = new Floor(new Coord(0, 5), CellType.FLOOR);
+        final Floor next6 = new Floor(new Coord(0, 6), CellType.FLOOR);
+        final Floor next62 = new Floor(new Coord(2, 6), CellType.FLOOR);
 
         graph.addNode(here);
 
@@ -144,20 +151,17 @@ public class FindOptimalPath<T extends Floor> {
         graph.addEdge(next4, next41, Direction.RIGHT);
 
         //
-        final Floor next51 = new Floor(new Coord(1, 5));
+        final Floor next51 = new Floor(new Coord(1, 5), CellType.FLOOR);
         graph.addNode(next51);
         graph.addEdge(next5, next51, Direction.RIGHT);
 
         final FindOptimalPath<Floor> findOptimalPath = new FindOptimalPath<>(graph);
 
-        final List<Floor> optimalPath = findOptimalPath.getOptimalPath(next4, next41);
+        final List<Floor> optimalPath = findOptimalPath.getOptimalPath(next4, next41, null);
 
         for (final Floor floor : optimalPath) {
             System.out.println(floor.getCoordinates().toString());
         }
 
-    }*/
-
-
-
+    }
 }

@@ -7,12 +7,11 @@ import codingame.pac.graph.Direction;
 import java.util.LinkedList;
 
 public class Floor extends Cell {
-    private boolean hasPellet;
     private boolean hasCherry;
     private Pellet pellet;
     private boolean hiddenPellet;
-    public Floor(Coord coord) {
-        super(coord);
+    public Floor(Coord coord, CellType floor) {
+        super(coord, floor);
         hiddenPellet = true;
     }
 
@@ -39,6 +38,10 @@ public class Floor extends Cell {
         return !isHiddenPellet() && pellet != null && pellet.isStillHere();
     }
 
+    public boolean hasSimplePellet() {
+        return !isHiddenPellet() && pellet != null && pellet.isStillHere() && !pellet.isSuper();
+    }
+
     public boolean hasCherry() {
         return !isHiddenPellet() && pellet != null && pellet.isStillHere() && pellet.isSuper();
     }
@@ -62,5 +65,9 @@ public class Floor extends Cell {
         if (this.pellet != null) {
             this.pellet.setStillHere(false);
         }
+    }
+
+    public Pellet getPellet() {
+        return pellet;
     }
 }

@@ -1,12 +1,19 @@
-package codingame.pac;
+package codingame.pac.agent;
 
 import codingame.Pellet;
+import codingame.pac.Coord;
+import codingame.pac.Gamer;
+import codingame.pac.Grid;
+import codingame.pac.PacmanType;
 import codingame.pac.action.Action;
 import codingame.pac.action.MoveAction;
 import codingame.pac.cell.Cell;
+import codingame.pac.cell.Floor;
+import codingame.pac.mission.Mission;
 
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 
 public class Pacman {
@@ -21,6 +28,8 @@ public class Pacman {
     private int abilityCooldown;
     private int tour;
     private Action currentAction;
+    private Role role;
+    private Mission mission;
 
     public Pacman(int id, int number, Gamer owner, Coord position, PacmanType type, int speedTurnsLeft, int abilityCooldown, int tour) {
         this.owner = owner;
@@ -73,10 +82,10 @@ public class Pacman {
             }
         }
         if (target != null) {
-            this.currentAction = new MoveAction(target.getCoord(), false);
+            this.currentAction = new MoveAction(target.getCoord(), false, id, this);
         } else {
             Coord destination = grid.randomFloor().getCoordinates();
-            this.currentAction = new MoveAction(destination, false);
+            this.currentAction = new MoveAction(destination, false, id, this);
         }
     }
 
@@ -110,7 +119,7 @@ public class Pacman {
     }
 
     public String printAction() {
-        return this.currentAction.print(this.id);
+        return this.currentAction.print();
     }
 
     public boolean available() {
@@ -119,8 +128,8 @@ public class Pacman {
 
     public Set<Cell> myVisibleCells(Cell[][] cells) {
         Set<Cell> visibleCells = new HashSet<>();
-        int baseX = position.x;
-        int baseY = position.y;
+        int baseX = position.getX();
+        int baseY = position.getY();
 
         for (int x = baseX + 1; x < Grid.width; x++) {
             if (cells[x][baseY].isWall()) break;
@@ -140,5 +149,37 @@ public class Pacman {
             visibleCells.add(cells[baseX][y]);
         }
         return visibleCells;
+    }
+
+    public boolean hasMission() {
+        return this.mission != null && mission.isRelevant() && !mission.isFinished() && mission.hasTasks();
+    }
+
+    public void setMission(Mission mission) {
+        this.mission = mission;
+    }
+
+    public String printMissionTask() {
+        return mission.todoTask();
+    }
+
+    public List<Floor> getOptimalPathTo(Coord coord) {
+        return this.owner.findOptimalPathFromTo(this.position, coord);
+    }
+
+    public Coord getPosition() {
+        return position;
+    }
+
+    public boolean canSpeedUp() {
+        return abilityCooldown <= 0;
+    }
+
+    public int getSpeedTurnsLeft() {
+        return speedTurnsLeft;
+    }
+
+    public int getAbilityCooldown() {
+        return abilityCooldown;
     }
 }

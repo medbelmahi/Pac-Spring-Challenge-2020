@@ -4,6 +4,8 @@ import java.io.*;
 import java.math.*;
 import java.util.stream.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.*;
+
 
 
 
@@ -37,149 +39,230 @@ class Pellet {
     public void disappear() {
         this.stillHere = false;
     }
-}
 
-
-
-
-
-class Pacman {
-    private Gamer owner;
-    private int id;
-    private int number;
-    private Coord position;
-    private PacmanType type;
-    private boolean dead = false;
-    private boolean binary;
-    private int speedTurnsLeft;
-    private int abilityCooldown;
-    private int tour;
-    private Action currentAction;
-
-    public Pacman(int id, int number, Gamer owner, Coord position, PacmanType type, int speedTurnsLeft, int abilityCooldown, int tour) {
-        this.owner = owner;
-        this.id = id;
-        this.number = number;
-        this.position = position;
-        this.speedTurnsLeft = speedTurnsLeft;
-        this.abilityCooldown = abilityCooldown;
-        this.setType(type);
-        owner.addPacman(this);
-        this.tour = tour;
-    }
-
-    public void setType(PacmanType type) {
-        this.type = type;
-    }
-
-    public void setDead() {
-        this.dead = true;
-    }
-    public void setDead(int currentTour) {
-        this.dead = isDead(currentTour);
-    }
-
-    public boolean isDead() {
-        return dead;
-    }
-
-    public boolean isDead(int currentTour) {
-        return tour < currentTour;
-    }
-
-    public void turnReset() {
-
-    }
-
-    public void setPosition(Coord position) {
-        this.position = position;
-    }
-
-    public void doAction(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
-        Pellet target = null;
-        if (!pellets.isEmpty()) {
-            if (binary) {
-                target = pellets.peek();
-                binary = false;
-            } else {
-                target = pellets.pop();
-                binary = true;
+    public Pacman getNearestPacman(Stream<Pacman> pacmen) {
+        Pacman target = null;
+        double minDistance = Integer.MAX_VALUE;
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
+            double distance = pacman.distance(this.getCoord());
+            if (minDistance > distance) {
+                minDistance = distance;
+                target = pacman;
             }
         }
-        if (target != null) {
-            this.currentAction = new MoveAction(target.getCoord(), false);
-        } else {
-            Coord destination = grid.randomFloor().getCoordinates();
-            this.currentAction = new MoveAction(destination, false);
+        return target;
+    }
+
+    public double getNearestDistanceToAPacman(Stream<Pacman> pacmen) {
+        double minDistance = Integer.MAX_VALUE;
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
+            double distance = pacman.distance(this.getCoord());
+            if (minDistance > distance) {
+                minDistance = distance;
+            }
         }
+        return minDistance;
     }
 
-    public int getId() {
-        return id;
+    @Override
+    public String toString() {
+        return coord.toString();
     }
 
-    public void setSpeedTurnsLeft(int speedTurnsLeft) {
-        this.speedTurnsLeft = speedTurnsLeft;
-    }
-
-    public void setAbilityCooldown(int abilityCooldown) {
-        this.abilityCooldown = abilityCooldown;
-    }
-
-    public void update() {
-        this.tour ++;
-        this.currentAction = null;
-    }
-
-    public boolean hasAction() {
-        return currentAction != null;
-    }
-
-    public double distance(Coord coord) {
-        return this.position.euclideanTo(coord);
-    }
-
-    public void setAction(Action action ) {
-        this.currentAction = action;
-    }
-
-    public String printAction() {
-        return this.currentAction.print(this.id);
-    }
-
-    public boolean available() {
-        return !hasAction() && !isDead();
-    }
-
-    public Set<Cell> myVisibleCells(Cell[][] cells) {
-        Set<Cell> visibleCells = new HashSet<>();
-        int baseX = position.x;
-        int baseY = position.y;
-
-        for (int x = baseX + 1; x < Grid.width; x++) {
-            if (cells[x][baseY].isWall()) break;
-             visibleCells.add(cells[x][baseY]);
-        }
-        for (int x = baseX - 1; x >= 0; x--) {
-            if (cells[x][baseY].isWall()) break;
-            visibleCells.add(cells[x][baseY]);
-        }
-
-        for (int y = baseY + 1; y < Grid.height; y++) {
-            if (cells[baseX][y].isWall()) break;
-            visibleCells.add(cells[baseX][y]);
-        }
-        for (int y = baseY - 1; y >= 0; y--) {
-            if (cells[baseX][y].isWall()) break;
-            visibleCells.add(cells[baseX][y]);
-        }
-        return visibleCells;
+    public boolean isSimple() {
+        return false;
     }
 }
 
 
-enum  CellType {
-    WALL, FLOOR;
+
+
+
+
+
+/*
+ * Find the best path from a Coord to another Coord
+ * currently : using Astar algorithm
+ */
+class PathFinder {
+  public static class PathFinderResult {
+    public static final PathFinderResult NO_PATH = new PathFinderResult();
+    public List<Coord> path = new ArrayList<>();
+    public int weightedLength = -1;
+    public boolean isNearest = false;
+
+    public boolean hasNextCoord() {
+      return path.size() > 1;
+    }
+
+    public Coord getNextCoord() {
+      return path.get(1);
+    }
+
+    public boolean hasNoPath() {
+      return weightedLength == -1;
+    }
+  }
+
+  Grid grid = null;
+  Coord from = null;
+  Coord to = null;
+  private Function<Coord, Integer> weightFunction = (Coord coord) -> (1);
+
+  public PathFinder setGrid(Grid grid) {
+      this.grid = grid;
+      return this;
+  }
+
+  public PathFinder from(Coord Coord) {
+    from = Coord;
+    return this;
+  }
+
+  public PathFinder to(Coord Coord) {
+    to = Coord;
+    return this;
+  }
+
+  public PathFinder withWeightFunction(Function<Coord, Integer> weightFunction) {
+    this.weightFunction = weightFunction;
+    return this;
+  }
+
+  public PathFinderResult findPath() {
+    if (from == null || to == null) {
+      return new PathFinderResult();
+    }
+
+    AStar a = new AStar(grid, from, to, weightFunction);
+    List<PathItem> pathItems = a.find();
+    PathFinderResult pfr = new PathFinderResult();
+
+    if (pathItems.isEmpty()) {
+        pfr.isNearest = true;
+        pathItems = new AStar(grid, from, a.getNearest(), weightFunction).find();
+    }
+
+    pfr.path = pathItems.stream()
+        .map(item -> item.coord)
+        .collect(Collectors.toList());
+    pfr.weightedLength = pathItems.get(pathItems.size() - 1).cumulativeLength;
+    return pfr;
+  }
+}
+
+
+
+
+/**
+ * PATH : A*
+ *
+ */
+class AStar {
+    Map<Coord, PathItem> closedList = new HashMap<>();
+    PriorityQueue<PathItem> openList = new PriorityQueue<PathItem>(Comparator.comparingInt(PathItem::getTotalPrevisionalLength));
+    List<PathItem> path = new ArrayList<PathItem>();
+
+    Grid grid;
+    Coord from;
+    Coord target;
+    Coord nearest;
+
+    int dirOffset;
+    private Function<Coord, Integer> weightFunction;
+
+    public AStar(Grid grid, Coord from, Coord target, Function<Coord, Integer> weightFunction) {
+        this.grid = grid;
+        this.from = from;
+        this.target = target;
+        this.weightFunction = weightFunction;
+        this.nearest = from;
+    }
+
+    public List<PathItem> find() {
+        PathItem item = getPathItemLinkedList();
+        path.clear();
+        if (item != null) {
+            calculatePath(item);
+        }
+        return path;
+    }
+
+    void calculatePath(PathItem item) {
+        PathItem i = item;
+        while (i != null) {
+            path.add(0, i);
+            i = i.precedent;
+        }
+    }
+
+    PathItem getPathItemLinkedList() {
+        PathItem root = new PathItem();
+        root.coord = this.from;
+        openList.add(root);
+
+        while (openList.size() > 0) {
+            PathItem visiting = openList.remove(); // imagine it's the best
+            Coord visitingCoord = visiting.coord;
+
+            if (visitingCoord.equals(target)) {
+                return visiting;
+            }
+            if (closedList.containsKey(visitingCoord)) {
+                continue;
+            }
+            closedList.put(visitingCoord, visiting);
+
+            List<Coord> neighbors = grid.getNeighbours(visitingCoord);
+            for (Coord neighbor : neighbors) {
+                if (grid.get(neighbor).getType() == CellType.FLOOR) {
+                    addToOpenList(visiting, visitingCoord, neighbor);
+                }
+            }
+
+            if (grid.calculateDistance(visitingCoord, target) < grid.calculateDistance(nearest, target)) {
+                this.nearest = visitingCoord;
+            }
+        }
+        return null; // not found !
+    }
+
+    void addToOpenList(PathItem visiting, Coord fromCoord, Coord toCoord) {
+        if (closedList.containsKey(toCoord)) {
+            return;
+        }
+        PathItem pi = new PathItem();
+        pi.coord = toCoord;
+        pi.cumulativeLength = visiting.cumulativeLength + weightFunction.apply(toCoord);
+        int manh = grid.calculateDistance(fromCoord, toCoord);
+        pi.totalPrevisionalLength = pi.cumulativeLength + manh;
+        pi.precedent = visiting;
+        openList.add(pi);
+    }
+
+    public Coord getNearest() {
+        return nearest;
+    }
+
+}
+/** End of PATH */
+
+
+
+
+class PathItem {
+    public int cumulativeLength = 0;
+    int totalPrevisionalLength = 0;
+    PathItem precedent = null;
+    Coord coord;
+
+    public int getTotalPrevisionalLength() {
+        return totalPrevisionalLength;
+    }
 }
 
 
@@ -368,11 +451,66 @@ class GraphMaker {
         return graphFindAllPaths;
     }
 
-    public static void addEdgeToCurrentCell(final GraphFindAllPaths<Floor> graphFindAllPaths, Floor currentCell, Cell destination, Direction direction) {
+    private static void addEdgeToCurrentCell(final GraphFindAllPaths<Floor> graphFindAllPaths, Floor currentCell, Cell destination, Direction direction) {
         if (destination != null) {
             graphFindAllPaths.addNode((Floor) destination);
             graphFindAllPaths.addEdge(currentCell, (Floor) destination, direction);
         }
+    }
+
+    public static void main(String[] args) {
+        String gridInput = "#################################\n" +
+                "# #     # # # #   # # # #     # #\n" +
+                "# # ##### # # # # # # # ##### # #\n" +
+                "# #       #     #     #       # #\n" +
+                "# # # # # ### # # # ### # # # # #\n" +
+                "#   #   #     #   #     #   #   #\n" +
+                "##### ### # # ##### # # ### #####\n" +
+                "#       #   # #   # #   #       #\n" +
+                "# ##### # ### # # # ### # ##### #\n" +
+                "#   #           #           #   #\n" +
+                "### # # # # # # # # # # # # # ###\n" +
+                "        #   #   #   #   #        \n" +
+                "### # ### ##### # ##### ### # ###\n" +
+                "    #                       #    \n" +
+                "#################################";
+        Grid.height = 15;
+        Grid.width = 33;
+        Cell[][] cells = new Cell[Grid.width][Grid.height];
+        final Set<Floor> places = new HashSet<>();
+        Scanner in = new Scanner(gridInput);
+        for (int i = 0; i < Grid.height; i++) {
+            int y = i;
+            String row = in.nextLine(); // one line of the grid: space " " is floor, pound "#" is wall
+            //System.err.println(row);
+            char[] cellsInput = row.toCharArray();
+            for (int x = 0; x < cellsInput.length; x++) {
+                Cell cell = CellPrototype.getCell(cellsInput[x], x, y);
+                cells[x][y] = cell;
+                if (cell instanceof Floor) {
+                    places.add((Floor) cell);
+                }
+            }
+        }
+
+        in.close();
+
+        GraphFindAllPaths<Floor> graph = constructGraph(places, cells);
+
+        final FindOptimalPath<Floor> findOptimalPath = new FindOptimalPath<>(graph);
+
+        //final List<Floor> optimalPath = findOptimalPath.getOptimalPath((Floor) cells[11][5], (Floor) cells[12][1]);
+        final List<Floor> optimalPath = findOptimalPath.getOptimalPath((Floor) cells[25][8], (Floor) cells[31][5], null);
+
+        if (optimalPath.isEmpty()) {
+            System.out.println("No path");
+        }
+        int i = 0;
+        for (final Floor floor : optimalPath) {
+            i++;
+            System.out.println(i + " - " + floor.getCoordinates().toString());
+        }
+
     }
 }
 
@@ -409,7 +547,7 @@ class FindOptimalPath<T extends Floor> {
         }
     }
 
-    public List<T> getOptimalPath(final T source, final T destination) {
+    public List<T> getOptimalPath(final T source, final T destination, T exception) {
         try {
             validate(source, destination);
         } catch (IllegalArgumentException e) {
@@ -418,11 +556,11 @@ class FindOptimalPath<T extends Floor> {
 
         List<T> alreadyList = new ArrayList<>();
 
-        final List<T> path = recursive(source, destination, alreadyList);
+        final List<T> path = recursive(source, destination, alreadyList, exception);
         return path;
     }
 
-    private List<T> recursive(final T current, final T destination, List<T> alreadyList) {
+    private List<T> recursive(final T current, final T destination, List<T> alreadyList, T exception) {
         final List<T> path = new ArrayList<>();
 
         alreadyList.add(current);
@@ -431,26 +569,31 @@ class FindOptimalPath<T extends Floor> {
             return path;
         }
 
-        //System.err.println("current : " + current.coordinates.toString());
+        //System.err.println("current : " + current.getCoordinates().toString());
         final Map<T, Direction> edges  = graph.edgesFrom(current);
 
-        final LinkedList<Direction> directions = current.getDirections(destination);
+        //final LinkedList<Direction> directions = current.getDirections(destination);
 
+        Set<T> currentFloorEdges = edges.keySet();
+        if (exception != null && alreadyList.size() == 1) {
+            currentFloorEdges = edges.keySet().stream().filter(t -> !t.equals(exception)).collect(Collectors.toSet());
+        }
 
-        for (final Direction direction : directions) {
-            for (final Map.Entry<T, Direction> entry : edges.entrySet()) {
-                T entryKey = entry.getKey();
-                if (direction.equals(entry.getValue()) && !alreadyList.contains(entryKey)) {
-                    if (entryKey != destination) {
-                        path.add(entryKey);
+        Set<T> sortedEdges = current.getSortedEdgesBasedOnDistanceFromTarget(destination, currentFloorEdges);
+
+        for (final T edge : sortedEdges) {
+                if (!alreadyList.contains(edge)) {
+                    if (edge != destination) {
+                        path.add(edge);
                     }
-                    final List<T> recursivePath = recursive(entryKey, destination, alreadyList);
+                    final List<T> recursivePath = recursive(edge, destination, alreadyList, exception);
                     if (!recursivePath.isEmpty() && recursivePath.get(recursivePath.size() - 1) == destination) {
                         path.addAll(recursivePath);
                         return path;
+                    } else {
+                        path.remove(path.size() - 1);
                     }
                 }
-            }
         }
 
         if (!path.isEmpty() && path.get(path.size() - 1) != destination) {
@@ -461,42 +604,42 @@ class FindOptimalPath<T extends Floor> {
     }
 
 
-    public Map<T, Integer> getPlacesWithDistance(T currentPlace){
+    public Map<T, Integer> getPlacesWithDistance(T currentPlace, T exception){
         Map<T, Integer> places = new HashMap<T, Integer>();
 
         final Map<T, Direction> edges  = graph.edgesFrom(currentPlace);
 
         for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-            recursivePlacesWithDistance(places, currentPlace, entry.getKey());
+            recursivePlacesWithDistance(places, currentPlace, entry.getKey(), exception);
         }
 
         return places;
     }
 
-    private void recursivePlacesWithDistance(Map<T, Integer> places, T currentPlace, T destination) {
+    private void recursivePlacesWithDistance(Map<T, Integer> places, T currentPlace, T destination, T exception) {
         if (places.size() > 10) {
-            places.put(destination, getOptimalPath(currentPlace, destination).size());
+            places.put(destination, getOptimalPath(currentPlace, destination, exception).size());
 
             final Map<T, Direction> edges  = graph.edgesFrom(destination);
 
             for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-                recursivePlacesWithDistance(places, currentPlace, entry.getKey());
+                recursivePlacesWithDistance(places, currentPlace, entry.getKey(), exception);
             }
         }
     }
 
-    /*public static void main(final String[] args) {
+    public static void main(final String[] args) {
         final GraphFindAllPaths<Floor> graph = new GraphFindAllPaths<>();
 
-        final Floor here = new Floor(new Coord(0, 0));
-        final Floor next1 = new Floor(new Coord(0, 1));
-        final Floor next2 = new Floor(new Coord(0, 2));
-        final Floor next3 = new Floor(new Coord(0, 3));
-        final Floor next4 = new Floor(new Coord(0, 4));
-        final Floor next41 = new Floor(new Coord(1, 4));
-        final Floor next5 = new Floor(new Coord(0, 5));
-        final Floor next6 = new Floor(new Coord(0, 6));
-        final Floor next62 = new Floor(new Coord(2, 6));
+        final Floor here = new Floor(new Coord(0, 0), CellType.FLOOR);
+        final Floor next1 = new Floor(new Coord(0, 1), CellType.FLOOR);
+        final Floor next2 = new Floor(new Coord(0, 2), CellType.FLOOR);
+        final Floor next3 = new Floor(new Coord(0, 3), CellType.FLOOR);
+        final Floor next4 = new Floor(new Coord(0, 4), CellType.FLOOR);
+        final Floor next41 = new Floor(new Coord(1, 4), CellType.FLOOR);
+        final Floor next5 = new Floor(new Coord(0, 5), CellType.FLOOR);
+        final Floor next6 = new Floor(new Coord(0, 6), CellType.FLOOR);
+        final Floor next62 = new Floor(new Coord(2, 6), CellType.FLOOR);
 
         graph.addNode(here);
 
@@ -518,22 +661,19 @@ class FindOptimalPath<T extends Floor> {
         graph.addEdge(next4, next41, Direction.RIGHT);
 
         //
-        final Floor next51 = new Floor(new Coord(1, 5));
+        final Floor next51 = new Floor(new Coord(1, 5), CellType.FLOOR);
         graph.addNode(next51);
         graph.addEdge(next5, next51, Direction.RIGHT);
 
         final FindOptimalPath<Floor> findOptimalPath = new FindOptimalPath<>(graph);
 
-        final List<Floor> optimalPath = findOptimalPath.getOptimalPath(next4, next41);
+        final List<Floor> optimalPath = findOptimalPath.getOptimalPath(next4, next41, null);
 
         for (final Floor floor : optimalPath) {
             System.out.println(floor.getCoordinates().toString());
         }
 
-    }*/
-
-
-
+    }
 }
 
 
@@ -547,11 +687,15 @@ enum Direction {
 
 
 
+
 class Grid {
     public static int width, height;
     Map<Coord, Cell> cellsMap = new HashMap<>();
-    Cell[][] cells;
+    public static Cell[][] cells;
     Set<Floor> places;
+    public static GraphFindAllPaths<Floor> graph;
+    public static FindOptimalPath<Floor> findOptimalPath;
+    public static PathFinder pathFinder;
 
     public Grid(Cell[][] cells, Set<Floor> places, int width, int height) {
         this.width = width;
@@ -563,6 +707,11 @@ class Grid {
                 cellsMap.put(new Coord(x, y), cells[x][y]);
             }
         }
+
+        this.graph = GraphMaker.constructGraph(places, cells);
+        this.findOptimalPath = new FindOptimalPath<>(graph);
+        pathFinder = new PathFinder();
+        pathFinder.setGrid(this);
     }
 
     public void printGrid() {
@@ -582,6 +731,445 @@ class Grid {
             iterator.next();
         }
         return iterator.next();
+    }
+
+    public List<Coord> getNeighbours(Coord pos) {
+        return Arrays
+                .stream(Config.ADJACENCY)
+                .map(delta -> getCoordNeighbour(pos, delta))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<Coord> getCoordNeighbour(Coord pos, Coord delta) {
+        Coord n = pos.add(delta);
+        if (Config.MAP_WRAPS) {
+            n = new Coord((n.x + width) % width, n.y);
+        }
+
+        if (get(n) != Cell.NO_CELL) {
+            return Optional.of(n);
+        }
+        return Optional.empty();
+    }
+
+    public Cell get(Coord coord) {
+        return get(coord.x, coord.y);
+    }
+
+    public Cell get(int x, int y) {
+        return cellsMap.getOrDefault(new Coord(x, y), Cell.NO_CELL);
+    }
+
+    public int calculateDistance(Coord a, Coord b) {
+        int dv = Math.abs(a.y - b.y);
+        int dh = Math.min(
+                Math.abs(a.x - b.x),
+                Math.min(a.x + width - b.x, b.x + width - a.x)
+        );
+        return dv + dh;
+    }
+}
+
+
+
+
+
+class Pacman {
+    private Gamer owner;
+    private int id;
+    private int number;
+    private Coord position;
+    private PacmanType type;
+    private boolean dead = false;
+    private boolean binary;
+    private int speedTurnsLeft;
+    private int abilityCooldown;
+    private int tour;
+    private Action currentAction;
+    private Role role;
+    private Mission mission;
+
+    public Pacman(int id, int number, Gamer owner, Coord position, PacmanType type, int speedTurnsLeft, int abilityCooldown, int tour) {
+        this.owner = owner;
+        this.id = id;
+        this.number = number;
+        this.position = position;
+        this.speedTurnsLeft = speedTurnsLeft;
+        this.abilityCooldown = abilityCooldown;
+        this.setType(type);
+        owner.addPacman(this);
+        this.tour = tour;
+    }
+
+    public void setType(PacmanType type) {
+        this.type = type;
+    }
+
+    public void setDead() {
+        this.dead = true;
+    }
+    public void setDead(int currentTour) {
+        this.dead = isDead(currentTour);
+    }
+
+    public boolean isDead() {
+        return dead;
+    }
+
+    public boolean isDead(int currentTour) {
+        return tour < currentTour;
+    }
+
+    public void turnReset() {
+
+    }
+
+    public void setPosition(Coord position) {
+        this.position = position;
+    }
+
+    public void doAction(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
+        Pellet target = null;
+        if (!pellets.isEmpty()) {
+            if (binary) {
+                target = pellets.peek();
+                binary = false;
+            } else {
+                target = pellets.pop();
+                binary = true;
+            }
+        }
+        if (target != null) {
+            this.currentAction = new MoveAction(target.getCoord(), false, id, this);
+        } else {
+            Coord destination = grid.randomFloor().getCoordinates();
+            this.currentAction = new MoveAction(destination, false, id, this);
+        }
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setSpeedTurnsLeft(int speedTurnsLeft) {
+        this.speedTurnsLeft = speedTurnsLeft;
+    }
+
+    public void setAbilityCooldown(int abilityCooldown) {
+        this.abilityCooldown = abilityCooldown;
+    }
+
+    public void update() {
+        this.tour ++;
+        this.currentAction = null;
+    }
+
+    public boolean hasAction() {
+        return currentAction != null;
+    }
+
+    public double distance(Coord coord) {
+        return this.position.euclideanTo(coord);
+    }
+
+    public void setAction(Action action ) {
+        this.currentAction = action;
+    }
+
+    public String printAction() {
+        return this.currentAction.print();
+    }
+
+    public boolean available() {
+        return !hasAction() && !isDead();
+    }
+
+    public Set<Cell> myVisibleCells(Cell[][] cells) {
+        Set<Cell> visibleCells = new HashSet<>();
+        int baseX = position.getX();
+        int baseY = position.getY();
+
+        for (int x = baseX + 1; x < Grid.width; x++) {
+            if (cells[x][baseY].isWall()) break;
+             visibleCells.add(cells[x][baseY]);
+        }
+        for (int x = baseX - 1; x >= 0; x--) {
+            if (cells[x][baseY].isWall()) break;
+            visibleCells.add(cells[x][baseY]);
+        }
+
+        for (int y = baseY + 1; y < Grid.height; y++) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        for (int y = baseY - 1; y >= 0; y--) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        return visibleCells;
+    }
+
+    public boolean hasMission() {
+        return this.mission != null && mission.isRelevant() && !mission.isFinished() && mission.hasTasks();
+    }
+
+    public void setMission(Mission mission) {
+        this.mission = mission;
+    }
+
+    public String printMissionTask() {
+        return mission.todoTask();
+    }
+
+    public List<Floor> getOptimalPathTo(Coord coord) {
+        return this.owner.findOptimalPathFromTo(this.position, coord);
+    }
+
+    public Coord getPosition() {
+        return position;
+    }
+
+    public boolean canSpeedUp() {
+        return abilityCooldown <= 0;
+    }
+
+    public int getSpeedTurnsLeft() {
+        return speedTurnsLeft;
+    }
+
+    public int getAbilityCooldown() {
+        return abilityCooldown;
+    }
+}
+
+
+enum Role {
+    COLLECTOR, ATTACKER, SKIPPER, HELPER
+}
+
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 11/05/2020
+ */
+abstract class Mission {
+    protected LinkedList<Task> tasks;
+    protected Pacman hero;
+
+    public abstract boolean isAchievable();
+
+    public abstract boolean isRelevant();
+
+    public abstract boolean isFinished();
+
+    public abstract boolean build(Game game);
+
+    public String todoTask() {
+        System.err.println(toString());
+        return this.tasks.pollLast().print();
+    }
+
+    public boolean hasTasks() {
+        return this.tasks.size() > 0;
+    }
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 11/05/2020
+ */
+class Task {
+    private Action action;
+    private int taskTour;
+
+    public Task(Action action, int taskTour) {
+        this.action = action;
+        this.taskTour = taskTour;
+    }
+
+    public String print() {
+        return action.print(taskTour);
+    }
+
+    public boolean hasConflict(Game game) {
+        return game.hasConflict(action, taskTour);
+    }
+
+    public boolean withSameAction(Action action) {
+        return this.action.areSame(action);
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 11/05/2020
+ */
+class CollectSuperPellets extends Mission {
+    private Pellet pellet;
+    private Stream<Pacman> pacmenStream;
+
+    public CollectSuperPellets(Pellet superPellet, Stream<Pacman> pacmanStream) {
+        pellet = superPellet;
+        pacmenStream = pacmanStream;
+        this.tasks = new LinkedList<>();
+    }
+    @Override
+    public boolean isAchievable() {
+        return false;
+    }
+
+    @Override
+    public boolean isRelevant() {
+        return this.pellet.isStillHere();
+    }
+
+    @Override
+    public boolean isFinished() {
+        return false;
+    }
+
+    @Override
+    public boolean build(Game game) {
+        List<Pacman> pacmen = this.pacmenStream.filter(p -> !p.hasMission()).collect(Collectors.toList());
+        if (pacmen.isEmpty()) {
+            return false;
+        }
+
+        Pacman pacman = pellet.getNearestPacman(pacmen.stream());
+
+        int currentTour = Game.tour;
+
+        //tasks.push(new Task(new SpeedAction(pacman.getId())));
+        List<Floor> optimalPath = pacman.getOptimalPathTo(pellet.getCoord());
+        int size = optimalPath.size();
+        Iterator<Floor> iterator = optimalPath.iterator();
+        Coord previousPos = pacman.getPosition();
+        if (size > 2) {
+            int taskIndex = 1;
+            int speedIndex = 1;
+            int index = 0;
+
+            int speedTurnsLeft = 10;
+            int abilityCountdown = 20;
+            if(pacman.canSpeedUp()) {
+                tasks.push(new Task(new SpeedAction(pacman.getId()), currentTour));
+            }else {
+                speedTurnsLeft = pacman.getSpeedTurnsLeft() * 2;
+                abilityCountdown = pacman.getAbilityCooldown() * 2;
+            }
+
+
+            while (iterator.hasNext()) {
+                currentTour++;
+                Floor floor = iterator.next();
+
+                Task currentTask = null;
+                if (index == (size-1)) {
+                    currentTask = new Task(new MoveAction(floor.getCoordinates(), true, pacman.getId(), pacman), currentTour);
+                }
+                if (taskIndex % 2 == 0) {
+                    currentTask = new Task(new MoveAction(floor.getCoordinates(), true, pacman.getId(), pacman), currentTour);
+                } else if(speedTurnsLeft <= 0) {
+                    currentTask = new Task(new MoveAction(floor.getCoordinates(), true, pacman.getId(), pacman), currentTour);
+                }
+
+                if (abilityCountdown <= 0) {
+                    currentTask = new Task(new SpeedAction(pacman.getId()), currentTour);
+                    speedTurnsLeft = 10;
+                    abilityCountdown = 20;
+                }
+
+
+                if (currentTask == null) {
+                    taskIndex++;
+                    speedIndex++;
+                    index++;
+                    speedTurnsLeft--;
+                    abilityCountdown--;
+                    continue;
+                }
+
+                if(!currentTask.hasConflict(game)) {
+                    tasks.push(currentTask);
+                    game.addTask(currentTour, currentTask);
+                    previousPos = floor.getCoordinates();
+                }else {
+                    List<Floor> newOptimalPath = game.getMe().findOptimalPathFromTo(previousPos, pellet.getCoord(), floor);
+                    iterator = newOptimalPath.iterator();
+                    currentTour--;
+                    continue;
+                }
+
+                taskIndex++;
+                speedIndex++;
+                index++;
+                speedTurnsLeft--;
+                abilityCountdown--;
+            }
+        } else {
+            while (iterator.hasNext()) {
+                Floor next = iterator.next();
+                Task task = new Task(new MoveAction(next.getCoordinates(), true, pacman.getId(), pacman), currentTour);
+                if(!task.hasConflict(game)) {
+                    tasks.push(task);
+                    game.addTask(currentTour, task);
+                    currentTour++;
+                    previousPos=next.getCoordinates();
+                }else {
+                    List<Floor> newOptimalPath = game.getMe().findOptimalPathFromTo(previousPos, pellet.getCoord(), next);
+                    iterator = newOptimalPath.iterator();
+                }
+            }
+        }
+        this.hero = pacman;
+        this.hero.setMission(this);
+
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "CollectSuperPellets{" +
+                "hero=" + hero.getId() +
+                ", pellet=" + pellet.toString() +"}";
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 11/05/2020
+ */
+class MissionEngine {
+    private LinkedList<Mission> store = new LinkedList<>();
+    private Game game;
+
+    public MissionEngine(Game game) {
+        this.game = game;
+    }
+
+    public void collectMissions(Set<Pellet> sortedSuperPellets, Stream<Pacman> alivePacmen) {
+        System.err.println("Super Pellets Size : " + sortedSuperPellets.size());
+        List<Pacman> pacmen = alivePacmen.collect(Collectors.toList());
+        for (Pellet superPellet : sortedSuperPellets) {
+            if (!superPellet.isStillHere()) {
+                continue;
+            }
+            CollectSuperPellets mission = new CollectSuperPellets(superPellet, pacmen.stream());
+            if (mission.build(game)) {
+                store.push(mission);
+            } else {
+                break;
+            }
+        }
     }
 }
 
@@ -725,7 +1313,7 @@ class Coord {
                 directions.add(Direction.RIGHT);
             }else{
                 directions.add(Direction.UP);
-                directions.add(Direction.RIGHT);
+                directions.add(Direction.LEFT);
                 directions.add(Direction.DOWN);
                 directions.add(Direction.RIGHT);
             }
@@ -744,14 +1332,28 @@ class Coord {
 
         return directions;
     }
+
+    public String shortPrint() {
+        return x + ":" + y;
+    }
+
+    public boolean isNeighborOf(Coord destination) {
+        Floor floor = (Floor) Grid.cells[this.x][this.y];
+        return Grid.graph.edgesFrom(floor).keySet().stream().anyMatch(floor1 -> floor1.getCoordinates().equals(destination));
+    }
 }
 
 
 
+enum  CellType {
+    WALL, FLOOR;
+}
+
+
 
 class Wall extends Cell {
-    public Wall(Coord coord) {
-        super(coord);
+    public Wall(Coord coord, CellType wall) {
+        super(coord, wall);
     }
 
     @Override
@@ -771,8 +1373,8 @@ class CellPrototype {
     public static Cell getCell(char type, int x, int y) {
         Coord coord = new Coord(x, y);
         switch (type) {
-            case ' ' : return new Floor(coord);
-            case '#': return new Wall(coord);
+            case ' ' : return new Floor(coord, CellType.FLOOR);
+            case '#': return new Wall(coord, CellType.WALL);
 
             default: throw new IllegalArgumentException("No Cell With Type of : " + type);
         }
@@ -783,12 +1385,11 @@ class CellPrototype {
 
 
 class Floor extends Cell {
-    private boolean hasPellet;
     private boolean hasCherry;
     private Pellet pellet;
     private boolean hiddenPellet;
-    public Floor(Coord coord) {
-        super(coord);
+    public Floor(Coord coord, CellType floor) {
+        super(coord, floor);
         hiddenPellet = true;
     }
 
@@ -815,6 +1416,10 @@ class Floor extends Cell {
         return !isHiddenPellet() && pellet != null && pellet.isStillHere();
     }
 
+    public boolean hasSimplePellet() {
+        return !isHiddenPellet() && pellet != null && pellet.isStillHere() && !pellet.isSuper();
+    }
+
     public boolean hasCherry() {
         return !isHiddenPellet() && pellet != null && pellet.isStillHere() && pellet.isSuper();
     }
@@ -839,20 +1444,53 @@ class Floor extends Cell {
             this.pellet.setStillHere(false);
         }
     }
+
+    public Pellet getPellet() {
+        return pellet;
+    }
 }
 
 
 
-class Cell {
-    private Coord coordinates;
 
-    public Cell(Coord coordinates) {
+class Cell {
+    public static final Cell NO_CELL = new Cell(new Coord(1000, 1000), CellType.FLOOR) {
+        @Override
+        public boolean isValid() {
+            return false;
+        }
+
+        @Override
+        public void copy(Cell other) {
+            throw new RuntimeException("Invalid cell");
+        }
+
+        @Override
+        public void setType(CellType type) {
+            throw new RuntimeException("Invalid cell");
+        }
+
+    };
+    public boolean isValid() {
+        return true;
+    }
+    public void copy(Cell source) {
+        setType(source.type);
+        setHasPellet(source.hasPellet);
+    }
+
+    private Coord coordinates;
+    private CellType type;
+    protected boolean hasPellet;
+
+    public Cell(Coord coordinates, CellType type) {
         this.coordinates = coordinates;
+        this.type = type;
     }
 
     public Cell rightCell(Cell[][] cells) {
         if (coordinates.getX() + 1 < Grid.width) {
-            Cell cell = cells[coordinates.getY()][coordinates.getX() + 1];
+            Cell cell = cells[coordinates.getX() + 1][coordinates.getY()];
             if (!cell.isWall()) return cell;
         }
         return null;
@@ -860,7 +1498,7 @@ class Cell {
 
     public Cell leftCell(Cell[][] cells) {
         if (coordinates.getX() - 1 >= 0) {
-            Cell cell = cells[coordinates.getY()][coordinates.getX() - 1];
+            Cell cell = cells[coordinates.getX() - 1][coordinates.getY()];
             if (!cell.isWall()) return cell;
         }
         return null;
@@ -868,7 +1506,7 @@ class Cell {
 
     public Cell upCell(Cell[][] cells) {
         if (coordinates.getY() - 1 >= 0) {
-            Cell cell = cells[coordinates.getY() - 1][coordinates.getX()];
+            Cell cell = cells[coordinates.getX()][coordinates.getY() - 1];
             if (!cell.isWall()) return cell;
         }
         return null;
@@ -876,7 +1514,7 @@ class Cell {
 
     public Cell downCell(Cell[][] cells) {
         if (coordinates.getY() + 1 < Grid.height) {
-            Cell cell = cells[coordinates.getY() + 1][coordinates.getX()];
+            Cell cell = cells[coordinates.getX()][coordinates.getY() + 1];
             if (!cell.isWall()) return cell;
         }
         return null;
@@ -892,6 +1530,35 @@ class Cell {
 
     public void noPellet() {
         // do noting
+    }
+
+    public <T extends Floor> Set<T> getSortedEdgesBasedOnDistanceFromTarget(T target, Set<T> edges) {
+        Set<T> sortedEdgesBasedOnDistanceFromTarget = new TreeSet<T>((floor1, floor2) -> {
+
+            double floor1DistanceToTarget = floor1.distance(target);
+            double floor2DistanceToTarget = floor2.distance(target);
+            return floor1DistanceToTarget < floor2DistanceToTarget ? -1 : 1;
+        });
+
+        sortedEdgesBasedOnDistanceFromTarget.addAll(edges);
+
+        return sortedEdgesBasedOnDistanceFromTarget;
+    }
+
+    protected <T extends Floor> double distance(T target) {
+        return coordinates.euclideanTo(target.getCoordinates());
+    }
+
+    public void setType(CellType type) {
+        this.type = type;
+    }
+
+    public void setHasPellet(boolean hasPellet) {
+        this.hasPellet = hasPellet;
+    }
+
+    public CellType getType() {
+        return type;
     }
 }
 
@@ -922,7 +1589,17 @@ class SwitchAction implements Action {
     }
 
     @Override
-    public String print(int id) {
+    public String print() {
+        return null;
+    }
+
+    @Override
+    public boolean areSame(Action action) {
+        return false;
+    }
+
+    @Override
+    public String print(int taskTour) {
         return null;
     }
 }
@@ -933,13 +1610,17 @@ class SwitchAction implements Action {
 class MoveAction implements Action {
 
     private Coord destination;
+    private int id;
+    private Pacman pacman;
 
     public Coord getTarget() {
         return destination;
     }
 
-    public MoveAction(Coord destination, boolean activateSpeed) {
+    public MoveAction(Coord destination, boolean activateSpeed, int id, Pacman pacman) {
         this.destination = destination;
+        this.id = id;
+        this.pacman = pacman;
     }
 
     @Override
@@ -952,8 +1633,22 @@ class MoveAction implements Action {
         return ActionType.MOVE;
     }
 
-    public String print(int pacmanId) {
-        return getActionType().toString() + " " + pacmanId + " " + destination.print();
+    public String print() {
+        return getActionType().toString() + " " + id + " " + destination.print() + " MV "+destination.shortPrint();
+    }
+
+    @Override
+    public boolean areSame(Action action) {
+        if (action instanceof MoveAction) {
+            Coord destination = ((MoveAction) action).destination;
+            return destination.equals(this.destination) || destination.isNeighborOf(this.destination);
+        }
+        return false;
+    }
+
+    @Override
+    public String print(int taskTour) {
+        return print() + ":" + taskTour;
     }
 }
 
@@ -975,14 +1670,31 @@ class ActionException extends Exception {
 
 
 class SpeedAction implements Action {
-  @Override
+
+    private int id;
+
+    public SpeedAction(int id) {
+        this.id = id;
+    }
+
+    @Override
   public ActionType getActionType() {
       return ActionType.SPEED;
   }
 
     @Override
-    public String print(int id) {
-        return null;
+    public String print() {
+        return ActionType.SPEED.toString() + " " + id + " SP";
+    }
+
+    @Override
+    public boolean areSame(Action action) {
+        return false;
+    }
+
+    @Override
+    public String print(int taskTour) {
+        return print() + ":" + taskTour;
     }
 
     @Override
@@ -994,29 +1706,13 @@ class SpeedAction implements Action {
 
 
 interface Action {
+    PacmanType getType();
+    ActionType getActionType();
+    String print();
 
-    Action NO_ACTION = new Action() {
+    boolean areSame(Action action);
 
-        @Override
-        public PacmanType getType() {
-            return null;
-        }
-
-        @Override
-        public ActionType getActionType() {
-            return ActionType.WAIT;
-        }
-
-        @Override
-        public String print(int id) {
-            return ActionType.WAIT.toString() + " " + id;
-        }
-    };
-
-    public PacmanType getType();
-    public ActionType getActionType();
-
-    String print(int id);
+    String print(int taskTour);
 }
 
 
@@ -1029,9 +1725,13 @@ class Game {
     private Gamer opponent;
     private LinkedList<Pellet> pellets;
     private Set<Pellet> superPellets;
+    public static int tour;
+    private Map<Integer, List<Task>> tasksByTour;
 
     public Game(Grid grid){
         this.grid = grid;
+        tour = 1;
+        tasksByTour = new HashMap<>();
     }
 
 
@@ -1066,10 +1766,44 @@ class Game {
     public void decreaseSuperPellets() {
         this.availableSuperPellets--;
     }
+
+    public void nextTour() {
+        tour++;
+    }
+
+    public void addTask(int taskTour, Task task) {
+        List<Task> tasks = this.tasksByTour.get(taskTour);
+        if (tasks != null) {
+            tasks.add(task);
+        } else {
+            List<Task> taskList = new ArrayList<>();
+            taskList.add(task);
+            this.tasksByTour.put(taskTour, taskList);
+        }
+    }
+
+    public Gamer getMe() {
+        return me;
+    }
+
+    public boolean hasConflict(Action action, int taskTour) {
+        List<Task> tasks = this.tasksByTour.get(taskTour);
+        if (tasks == null || tasks.isEmpty()) {
+            return false;
+        }
+
+        return tasks.stream().anyMatch(task -> task.withSameAction(action));
+    }
+
+    public LinkedList<Pellet> getPellets() {
+        return pellets;
+    }
 }
 
 
 class Config {
+    public static final Coord[] ADJACENCY = { new Coord(-1, 0), new Coord(1, 0), new Coord(0, -1), new Coord(0, 1) };
+    public static boolean MAP_WRAPS = true;
     public static final int ID_ROCK = 0;
     public static final int ID_PAPER = 1;
     public static final int ID_SCISSORS = 2;
@@ -1124,15 +1858,37 @@ class Gamer {
             if (pelletIterator.hasNext()) {
                 Pellet pellet = pelletIterator.next();
                 Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(Pacman::available));
-                pacman.setAction(new MoveAction(pellet.getCoord(), false));
+                pacman.setAction(new MoveAction(pellet.getCoord(), false, pacman.getId(), pacman));
             }
         }
         pacmen.stream().filter(Pacman::available).forEach(pacman -> pacman.doAction(pellets, superPellets, grid));
 
         List<String> actionsList = new ArrayList<>();
-        getAlivePacmen().forEach(pacman -> actionsList.add(pacman.printAction()));
+        this.pacmen.forEach(pacman -> {
+            if (pacman.hasMission()) {
+                actionsList.add(pacman.printMissionTask());
+            } else {
+                actionsList.add(pacman.printAction());
+            }
+
+        });
+
+
+        //simulateMission();
 
         return String.join(" | ", actionsList);
+    }
+
+    private void simulateMission() {
+        List<String> actionsList = new ArrayList<>();
+
+        this.pacmen.forEach(pacman -> {
+            if (pacman.hasMission()) {
+                actionsList.add(pacman.printMissionTask());
+            }
+        });
+
+        //System.err.println("Simulate Mission : " + String.join(" | ", actionsList));
     }
 
     private Pacman getNearestPacman(Pellet pellet, Stream<Pacman> pacmen) {
@@ -1150,7 +1906,7 @@ class Gamer {
         return target;
     }
 
-    public void updatePellets(Map<Coord, Pellet> newVisiblePellets, Cell[][] cells) {
+    public void updatePellets(Map<Coord, Pellet> newVisiblePellets, Set<Pellet> sortedSuperPellets, Cell[][] cells) {
        Set<Coord> visibleCoords = getAllVisibleCoords(getAlivePacmen(), cells);
         for (Coord visibleCoord : visibleCoords) {
             Pellet pellet = newVisiblePellets.get(visibleCoord);
@@ -1158,6 +1914,23 @@ class Gamer {
                 Cell cell = cells[visibleCoord.x][visibleCoord.y];
                 cell.noPellet();
             }
+        }
+        if (!sortedSuperPellets.isEmpty()) {
+            List<Pellet> newSortingForSuperPellets = new ArrayList<>(sortedSuperPellets.size());
+            Iterator<Pellet> iterator = sortedSuperPellets.iterator();
+            while (iterator.hasNext()) {
+                Pellet superPellet = iterator.next();
+                Coord coord = superPellet.getCoord();
+                Pellet pellet = newVisiblePellets.get(coord);
+                if (pellet == null) {
+                    cells[coord.x][coord.y].noPellet();
+                    iterator.remove();
+                } else {
+                    newSortingForSuperPellets.add(pellet);
+                }
+            }
+            sortedSuperPellets.clear();
+            sortedSuperPellets.addAll(newSortingForSuperPellets);
         }
     }
 
@@ -1167,6 +1940,20 @@ class Gamer {
             pacman.myVisibleCells(cells).forEach(cell -> visibleCoords.add(cell.getCoordinates()));
         });
         return visibleCoords;
+    }
+
+    public List<Floor> findOptimalPathFromTo(Coord position, Coord coord) {
+        Floor from = (Floor) grid.cells[position.x][position.y];
+        Floor to = (Floor) grid.cells[coord.x][coord.y];
+        return grid.findOptimalPath.getOptimalPath(from, to, null);
+        /*return grid.pathFinder.from(position).to(coord).findPath().path.stream()
+                .map(co -> (Floor) grid.cells[co.x][co.y]).collect(Collectors.toList());*/
+    }
+
+    public List<Floor> findOptimalPathFromTo(Coord previousPos, Coord coord, Floor exception) {
+        Floor from = (Floor) grid.cells[previousPos.x][previousPos.y];
+        Floor to = (Floor) grid.cells[coord.x][coord.y];
+        return grid.findOptimalPath.getOptimalPath(from, to, exception);
     }
 }
 
@@ -1191,7 +1978,7 @@ class Player {
         for (int i = 0; i < height; i++) {
             int y = i;
             String row = in.nextLine(); // one line of the grid: space " " is floor, pound "#" is wall
-
+            System.err.println(row);
             char[] cellsInput = row.toCharArray();
             for (int x = 0; x < cellsInput.length; x++) {
                 Cell cell = CellPrototype.getCell(cellsInput[x], x, y);
@@ -1210,6 +1997,7 @@ class Player {
         game.setOpponent(opponent);
 
         Map<String, Pacman> pacmanMap = new HashMap<>();
+
 
         // Start First Tour -------------------------------------------------------------------------------------------
         int tour = 1;
@@ -1239,6 +2027,23 @@ class Player {
         LinkedList<Pellet> pellets = new LinkedList<>();
         Set<Pellet> superPellets = new HashSet<>();
         Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
+
+        Set<Pellet> sortedSuperPellets = new TreeSet<Pellet>((p1, p2) -> {
+            Supplier<Stream<Pacman>> alivePacmen = () -> me.getAlivePacmen();
+            double p1NearestDistanceToAPacman = p1.getNearestDistanceToAPacman(alivePacmen.get());
+            double p2NearestDistanceToAPacman = p2.getNearestDistanceToAPacman(alivePacmen.get());
+
+            return p1NearestDistanceToAPacman < p2NearestDistanceToAPacman ? -1 : 1;
+        });
+
+        Set<Pellet> sortedPellets = new TreeSet<Pellet>((p1, p2) -> {
+            Supplier<Stream<Pacman>> alivePacmen = () -> me.getAlivePacmen();
+            double p1NearestDistanceToAPacman = p1.getNearestDistanceToAPacman(alivePacmen.get());
+            double p2NearestDistanceToAPacman = p2.getNearestDistanceToAPacman(alivePacmen.get());
+
+            return p1NearestDistanceToAPacman < p2NearestDistanceToAPacman ? -1 : 1;
+        });
+
         int visiblePelletCount = in.nextInt(); // all pellets in sight
         for (int i = 0; i < visiblePelletCount; i++) {
             int x = in.nextInt();
@@ -1248,19 +2053,28 @@ class Player {
             Coord coord = new Coord(x, y);
             Pellet pellet = new Pellet(coord, value);
             if (value == 10) {
-                superPellets.add(pellet);
+                //superPellets.add(pellet);
+                sortedSuperPellets.add(pellet);
+                System.err.println("super : " + coord);
             } else {
                 pellets.add(pellet);
             }
             ((Floor) cells[x][y]).setPellet(pellet);
             newVisiblePellets.put(coord, pellet);
+            sortedPellets.add(pellet);
         }
-        me.updatePellets(newVisiblePellets, cells);
+
+        MissionEngine ME = new MissionEngine(game);
+
+        //printSuperPellets(sortedSuperPellets);
+
+        me.updatePellets(newVisiblePellets, new HashSet<>(), cells);
         game.setPellets(pellets);
         game.setSuperPellets(superPellets);
 
-        grid.printGrid();
+            grid.printGrid();
 
+        ME.collectMissions(sortedSuperPellets, me.getAlivePacmen());
         System.out.println(game.play());
         printEndTime(startTime, "First Tour");
         // Start First Tour -------------------------------------------------------------------------------------------
@@ -1271,14 +2085,13 @@ class Player {
         while (true) {
             startTime = System.nanoTime();
             tour++;
+            game.nextTour();
             setScores(in, me, opponent, game);
 
             visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
             for (int i = 0; i < visiblePacCount; i++) {
                 int pacId = in.nextInt(); // pac number (unique within a team)
                 boolean mine = in.nextInt() != 0; // true if this pac is yours
-
-                //System.err.println(key);
 
                 int x = in.nextInt(); // position in the grid
                 int y = in.nextInt(); // position in the grid
@@ -1287,6 +2100,7 @@ class Player {
                 int abilityCooldown = in.nextInt(); // unused in wood leagues
 
                 String key = pacId + "-" + mine;
+                System.err.println("pacman : " + key + " Has ability countdown : : " + abilityCooldown);
                 Pacman pacman = pacmanMap.get(key);
                 if (pacman == null) {
                     pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, tour);
@@ -1304,7 +2118,7 @@ class Player {
             setDeadPacmen(pacmanMap.values(), tour);
             visiblePelletCount = in.nextInt(); // all pellets in sight
 
-            pellets.clear();
+            //pellets.clear();
             superPellets.clear();
             newVisiblePellets.clear();
             for (int i = 0; i < visiblePelletCount; i++) {
@@ -1314,25 +2128,42 @@ class Player {
 
                 Coord coord = new Coord(x, y);
                 Pellet pellet = new Pellet(coord, value);
-                if (value == 10) {
-                    superPellets.add(pellet);
-                } else {
+                if (value != 10) {
                     pellets.add(pellet);
+                } else {
+
                 }
                 ((Floor) cells[x][y]).setPellet(pellet);
                 newVisiblePellets.put(coord, pellet);
             }
-            me.updatePellets(newVisiblePellets, cells);
+            me.updatePellets(newVisiblePellets, sortedSuperPellets, cells);
             game.setPellets(pellets);
             game.setSuperPellets(superPellets);
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
 
             grid.printGrid();
-
+            printEndTime(startTime, "0 - Tour number ("+tour +")");
+            List<Pacman> alivePacmen = me.getAlivePacmen().collect(Collectors.toList());
+            if (!sortedSuperPellets.isEmpty()) {
+                ME.collectMissions(sortedSuperPellets, alivePacmen.stream());
+            }
+            printEndTime(startTime, "1 - Tour number ("+tour +")");
+            sortedPellets.clear();
+            printEndTime(startTime, "3 - Tour number ("+tour +")");
+            sortedPellets.addAll(game.getPellets());
+            printEndTime(startTime, "4 - Tour number ("+tour +")");
+            ME.collectMissions(sortedPellets, alivePacmen.stream());
+            printEndTime(startTime, "5 - Tour number ("+tour +")");
             System.out.println(game.play());
             printEndTime(startTime, "Tour number ("+tour +")");
         }
+    }
+
+    private static void printSuperPellets(Set<Pellet> sortedSuperPellets) {
+        System.err.println("sortedSuperPellets : ");
+        for (Pellet sortedSuperPellet : sortedSuperPellets) {
+            System.err.print(sortedSuperPellet + " ");
+        }
+        System.err.println();
     }
 
     private static void setDeadPacmen(Collection<Pacman> pacmen, int currentTour) {
@@ -1344,7 +2175,7 @@ class Player {
         long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
         long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
 
-        //System.err.println(message + " = " + durationInMillis + "ms");
+        System.err.println(message + " = " + durationInMillis + "ms");
     }
 
     private static void setScores(Scanner in, Gamer me, Gamer opponent, Game game) {

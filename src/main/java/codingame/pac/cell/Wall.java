@@ -3,8 +3,8 @@ package codingame.pac.cell;
 import codingame.pac.Coord;
 
 public class Wall extends Cell {
-    public Wall(Coord coord) {
-        super(coord);
+    public Wall(Coord coord, CellType wall) {
+        super(coord, wall);
     }
 
     @Override

@@ -1,6 +1,10 @@
 package codingame;
 
 import codingame.pac.Coord;
+import codingame.pac.agent.Pacman;
+
+import java.util.Iterator;
+import java.util.stream.Stream;
 
 public class Pellet {
     private Coord coord;
@@ -31,5 +35,42 @@ public class Pellet {
 
     public void disappear() {
         this.stillHere = false;
+    }
+
+    public Pacman getNearestPacman(Stream<Pacman> pacmen) {
+        Pacman target = null;
+        double minDistance = Integer.MAX_VALUE;
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
+            double distance = pacman.distance(this.getCoord());
+            if (minDistance > distance) {
+                minDistance = distance;
+                target = pacman;
+            }
+        }
+        return target;
+    }
+
+    public double getNearestDistanceToAPacman(Stream<Pacman> pacmen) {
+        double minDistance = Integer.MAX_VALUE;
+        Iterator<Pacman> iterator = pacmen.iterator();
+        while (iterator.hasNext()) {
+            Pacman pacman = iterator.next();
+            double distance = pacman.distance(this.getCoord());
+            if (minDistance > distance) {
+                minDistance = distance;
+            }
+        }
+        return minDistance;
+    }
+
+    @Override
+    public String toString() {
+        return coord.toString();
+    }
+
+    public boolean isSimple() {
+        return false;
     }
 }
