@@ -1,13 +1,20 @@
 package codingame.pac.action;
 
-import codingame.pac.PacmanType;
+import codingame.pac.PacMan;
 
-public interface Action {
-    PacmanType getType();
-    ActionType getActionType();
-    String print();
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+public abstract class Action {
+    PacMan pacMan;
 
-    boolean areSame(Action action);
+    public Action(PacMan pacMan) {
+        this.pacMan = pacMan;
+    }
 
-    String print(int taskTour);
+    public abstract String printCommand();
+    public abstract ActionType type();
+
+    public abstract String print(int pacId);
+    protected abstract String msg();
 }

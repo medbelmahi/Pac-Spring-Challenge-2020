@@ -1,37 +1,34 @@
 package codingame.pac.action;
 
-import codingame.pac.PacmanType;
+import codingame.pac.PacMan;
 
-public class SpeedAction implements Action {
+import java.util.Arrays;
 
-    private int id;
-
-    public SpeedAction(int id) {
-        this.id = id;
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+public class SpeedAction extends Action {
+    public SpeedAction(PacMan pacMan) {
+        super(pacMan);
     }
 
     @Override
-  public ActionType getActionType() {
-      return ActionType.SPEED;
-  }
-
-    @Override
-    public String print() {
-        return ActionType.SPEED.toString() + " " + id + " SP";
+    public String printCommand() {
+        return pacMan.doCommand(this);
     }
 
     @Override
-    public boolean areSame(Action action) {
-        return false;
+    public ActionType type() {
+        return ActionType.SPEED;
     }
 
     @Override
-    public String print(int taskTour) {
-        return print() + ":" + taskTour;
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
     }
 
     @Override
-  public PacmanType getType() {
-      return null;
-  }
+    protected String msg() {
+        return "S";
+    }
 }

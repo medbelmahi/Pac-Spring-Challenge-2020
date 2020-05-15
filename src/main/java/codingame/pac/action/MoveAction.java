@@ -1,51 +1,38 @@
 package codingame.pac.action;
 
+import codingame.pac.PacMan;
+import codingame.pac.cell.Coord;
 
-import codingame.pac.Coord;
-import codingame.pac.PacmanType;
-import codingame.pac.agent.Pacman;
+import java.util.Arrays;
 
-public class MoveAction implements Action {
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+public class MoveAction extends Action {
 
-    private Coord destination;
-    private int id;
-    private Pacman pacman;
-
-    public Coord getTarget() {
-        return destination;
-    }
-
-    public MoveAction(Coord destination, boolean activateSpeed, int id, Pacman pacman) {
-        this.destination = destination;
-        this.id = id;
-        this.pacman = pacman;
+    private Coord coord;
+    public MoveAction(PacMan pacMan, Coord coord) {
+        super(pacMan);
+        this.coord = coord;
     }
 
     @Override
-    public PacmanType getType() {
-        return null;
+    public String printCommand() {
+        return pacMan.doCommand(this);
     }
 
     @Override
-    public ActionType getActionType() {
+    public ActionType type() {
         return ActionType.MOVE;
     }
 
-    public String print() {
-        return getActionType().toString() + " " + id + " " + destination.print() + " MV "+destination.shortPrint();
+    @Override
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), coord.toString(), msg()));
     }
 
     @Override
-    public boolean areSame(Action action) {
-        if (action instanceof MoveAction) {
-            Coord destination = ((MoveAction) action).destination;
-            return destination.equals(this.destination) || destination.isNeighborOf(this.destination);
-        }
-        return false;
-    }
-
-    @Override
-    public String print(int taskTour) {
-        return print() + ":" + taskTour;
+    protected String msg() {
+        return "M-" + coord.getX() + ":" + coord.getY();
     }
 }
