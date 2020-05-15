@@ -17,11 +17,6 @@ public class MoveAction extends Action {
     }
 
     @Override
-    public String printCommand() {
-        return pacMan.doCommand(this);
-    }
-
-    @Override
     public ActionType type() {
         return ActionType.MOVE;
     }
@@ -34,5 +29,13 @@ public class MoveAction extends Action {
     @Override
     protected String msg() {
         return "M-" + coord.getX() + ":" + coord.getY();
+    }
+
+    public Coord targetCoord() {
+        return coord;
+    }
+
+    public boolean isReached() {
+        return this.coord.distanceTo(pacMan.getCoord()) == 0;
     }
 }

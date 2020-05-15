@@ -12,9 +12,18 @@ public abstract class Action {
         this.pacMan = pacMan;
     }
 
-    public abstract String printCommand();
     public abstract ActionType type();
 
     public abstract String print(int pacId);
     protected abstract String msg();
+
+    public void changeItPacWith(Action action) {
+        PacMan temp = this.pacMan;
+        this.pacMan = action.pacMan;
+        action.pacMan = temp;
+    }
+
+    public String printCommand() {
+        return pacMan.doCommand(this);
+    }
 }

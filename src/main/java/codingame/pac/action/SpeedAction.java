@@ -13,11 +13,6 @@ public class SpeedAction extends Action {
     }
 
     @Override
-    public String printCommand() {
-        return pacMan.doCommand(this);
-    }
-
-    @Override
     public ActionType type() {
         return ActionType.SPEED;
     }

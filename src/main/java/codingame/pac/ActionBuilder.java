@@ -1,6 +1,7 @@
 package codingame.pac;
 
 import codingame.pac.action.MoveAction;
+import codingame.pac.cell.Floor;
 
 import java.util.Set;
 
@@ -16,5 +17,15 @@ public class ActionBuilder {
         Pellet pellet = pacMan.getNearestPellets(pellets);
 
         return pellet.targeted(pacMan);
+    }
+
+    public static MoveAction buildFindPelletAction(Set<Floor> floors, PacMan pacMan) {
+        if (floors.isEmpty()) {
+            return null;
+        }
+
+        Floor floor = pacMan.getDeepestFloor(floors);
+
+        return floor.targeted(pacMan);
     }
 }

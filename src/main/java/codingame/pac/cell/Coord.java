@@ -7,8 +7,8 @@ import java.util.Objects;
  */
 public class Coord {
 
-    private final int x;
-    private final int y;
+    public final int x;
+    public final int y;
 
     public Coord(int x, int y) {
         this.x = x;
@@ -42,6 +42,10 @@ public class Coord {
 
     public int getY() {
         return y;
+    }
+
+    public Coord add(Coord d) {
+        return new Coord(x + d.x, y + d.y);
     }
 
     @Override

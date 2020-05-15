@@ -1,11 +1,15 @@
 package codingame.pac;
 
 import codingame.pac.action.Action;
+import codingame.pac.action.WaitAction;
 import codingame.pac.cell.Cell;
+import codingame.pac.cell.Coord;
 import codingame.pac.cell.Floor;
 import codingame.pac.task.Task;
+import codingame.pac.task.WaitTask;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -105,5 +109,60 @@ public class PacMan {
 
     public Action getCurrentAction() {
         return task.keepTargeting();
+    }
+
+    public boolean hasMoveTask() {
+        return task != null && !task.isFinished() && task.isMoveTask();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PacMan pacMan = (PacMan) o;
+        return pacId == pacMan.pacId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(pacId);
+    }
+
+    public void switchTasksWith(PacMan pacMan) {
+        this.task.switchTo(pacMan.task);
+        Task temp = this.task;
+        this.task = pacMan.task;
+        pacMan.task = temp;
+    }
+
+    public double distanceTo(PacMan pacMan) {
+        return this.position.distanceTo(pacMan.position);
+    }
+
+    public Coord getCoord() {
+        return position.getCoord();
+    }
+
+    public Coord getTarget() {
+        return task.moveTarget();
+    }
+
+    public void setWaitTask() {
+        this.task = new WaitTask(new WaitAction(this));
+    }
+
+    public Floor getDeepestFloor(Set<Floor> floors) {
+        double deepestDistance = 0;
+        Floor deepestFloor = null;
+
+        for (Floor floor : floors) {
+            double newDistance = floor.distanceTo(position);
+            if (newDistance > deepestDistance) {
+                deepestDistance = newDistance;
+                deepestFloor = floor;
+            }
+        }
+        System.err.println("pac-" + pacId + " nearTo: " + deepestFloor + " Distance: " + deepestDistance);
+        return deepestFloor;
     }
 }

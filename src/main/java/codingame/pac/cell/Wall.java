@@ -12,4 +12,9 @@ public class Wall extends Cell {
     public boolean isWall() {
         return true;
     }
+
+    @Override
+    public String toString() {
+        return "#";
+    }
 }

@@ -1,29 +1,29 @@
 package codingame.pac.task;
 
-import codingame.pac.Pellet;
 import codingame.pac.action.Action;
 import codingame.pac.action.MoveAction;
 import codingame.pac.cell.Coord;
+import codingame.pac.cell.Floor;
 
 /**
  * Mohamed BELMAHI created on 15/05/2020
  */
-public class EatTask extends Task {
-    private Pellet pellet;
+public class FindPelletTask extends Task {
+    private Floor floor;
 
-    public EatTask(Action action, Pellet pellet) {
-        super(action);
-        this.pellet = pellet;
+    public FindPelletTask(MoveAction moveAction, Floor floor) {
+        super(moveAction);
+        this.floor = floor;
     }
 
     @Override
     public boolean isFinished() {
-        return !this.pellet.isStillHere();
+        return ((MoveAction) action).isReached();
     }
 
     @Override
     public Action keepTargeting() {
-        pellet.setTargeted(true);
+        floor.setTargeted(true);
         return action;
     }
 
@@ -34,6 +34,6 @@ public class EatTask extends Task {
 
     @Override
     public Coord moveTarget() {
-        return isMoveTask() ? ((MoveAction) action).targetCoord() : null;
+        return floor.getCoord();
     }
 }
