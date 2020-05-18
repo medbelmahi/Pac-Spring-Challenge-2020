@@ -1,5 +1,5 @@
 package codingame.pac;
 
 public enum PacManType {
-    ROCK, PAPER, SCISSORS
+    ROCK, PAPER, SCISSORS, DEAD
 }

@@ -4,6 +4,7 @@ import codingame.pac.action.Action;
 import codingame.pac.action.WaitAction;
 import codingame.pac.cell.Cell;
 import codingame.pac.cell.Coord;
+import codingame.pac.cell.Direction;
 import codingame.pac.cell.Floor;
 import codingame.pac.task.Task;
 import codingame.pac.task.WaitTask;
@@ -40,7 +41,7 @@ public class PacMan {
         this.tour++;
     }
 
-    public boolean canSpeedUp() {
+    public boolean canSpeedUpOrSwitch() {
         return abilityCountdown <= 0;
     }
 
@@ -55,9 +56,9 @@ public class PacMan {
         for (Pellet pellet : pellets) {
             double newDistance = pellet.distanceTo(position);
             if (newDistance < nearestDistance) {
-                if (isOnSpeedMode() && !pellet.isSuper() && newDistance < 2) {
+                /*if (isOnSpeedMode() && !pellet.isSuper() && newDistance < 2) {
                     continue;
-                }
+                }*/
                 nearestDistance = newDistance;
                 nearestPellet = pellet;
             }
@@ -103,8 +104,8 @@ public class PacMan {
         return this.task != null && !this.task.isFinished();
     }
 
-    public boolean isAlive(int currentTour) {
-        return this.tour >= currentTour;
+    public boolean isAlive() {
+        return !PacManType.DEAD.equals(typeId);
     }
 
     public Action getCurrentAction() {
@@ -148,6 +149,7 @@ public class PacMan {
     }
 
     public void setWaitTask() {
+        System.err.println(infoMe() + " set wait task");
         this.task = new WaitTask(new WaitAction(this));
     }
 
@@ -164,5 +166,89 @@ public class PacMan {
         }
         System.err.println("pac-" + pacId + " nearTo: " + deepestFloor + " Distance: " + deepestDistance);
         return deepestFloor;
+    }
+
+    public Coord nextCoord(Coord coord) {
+        if (isOnSpeedMode()) {
+            if (coord.distanceTo(this.getCoord()) <= 1) {
+                Coord nextCoord = goForwardByStep(coord);
+                return nextCoord != null ? nextCoord : coord;
+            }
+        }
+        return coord;
+    }
+
+    private Coord goForwardByStep(Coord coord) {
+        Direction direction = getMoveDirection(coord);
+        if (direction != null) {
+            switch (direction) {
+                case LEFT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x - 1, coord.y));
+                case RIGHT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x + 1, coord.y));
+                case UP:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y - 1));
+                case DOWN:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y + 1));
+            }
+        }
+        return null;
+    }
+
+    private Coord getNextCoordIfIsAFloor(Coord coord) {
+        Cell cell = Grid.cellsMap.get(coord);
+        return cell != null && !cell.isWall() ? cell.getCoord() : null;
+    }
+
+    private Direction getMoveDirection(Coord coord) {
+        int x = this.getCoord().x;
+        int y = this.getCoord().y;
+
+        if (x == coord.x) {
+            if (y < coord.y) {
+                return Direction.DOWN;
+            } else {
+                return Direction.UP;
+            }
+        }else if (y == coord.y) {
+            if (x < coord.x) {
+                return Direction.RIGHT;
+            } else {
+                return Direction.LEFT;
+            }
+        }
+        return null;
+    }
+
+    public String printTaskInfo() {
+        return this.task.printInfo();
+    }
+
+    public boolean isVisibleToMe(PacMan otherPacMan) {
+        return getCoord().isCrossedWith(otherPacMan.getCoord());
+    }
+
+    public String infoMe() {
+        return pacId + "-" + typeId + "-" + getCoord();
+    }
+
+    public boolean hasSameType(PacManType pacManType) {
+        return this.typeId.equals(pacManType);
+    }
+
+    public PacManType attackType(PacMan crossedPac) {
+        switch (crossedPac.typeId) {
+            case ROCK: return PacManType.PAPER;
+            case PAPER: return PacManType.SCISSORS;
+            case SCISSORS: return PacManType.ROCK;
+        }
+        return typeId;
+    }
+
+    public boolean noNeedToKeepWaiting(int counter) {
+        if(isOnSpeedMode()) {
+            return counter <= 0 ? true : false;
+        }
+        return true;
     }
 }

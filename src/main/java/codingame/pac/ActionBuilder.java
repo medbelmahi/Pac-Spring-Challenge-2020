@@ -1,6 +1,8 @@
 package codingame.pac;
 
+import codingame.pac.action.Action;
 import codingame.pac.action.MoveAction;
+import codingame.pac.action.SwitchAction;
 import codingame.pac.cell.Floor;
 
 import java.util.Set;
@@ -27,5 +29,20 @@ public class ActionBuilder {
         Floor floor = pacMan.getDeepestFloor(floors);
 
         return floor.targeted(pacMan);
+    }
+
+    public static Action buildAttackAction(PacMan pacMan, PacMan crossedPac) {
+        if (!crossedPac.canSpeedUpOrSwitch()) {
+            PacManType pacManType = pacMan.attackType(crossedPac);
+
+            if (pacMan.hasSameType(pacManType)) {
+                return null;
+            } else {
+                 new SwitchAction(pacMan);
+            }
+        } else {
+            return null;
+        }
+        return null;
     }
 }

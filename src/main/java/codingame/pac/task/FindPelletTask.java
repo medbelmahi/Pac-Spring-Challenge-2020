@@ -18,7 +18,7 @@ public class FindPelletTask extends Task {
 
     @Override
     public boolean isFinished() {
-        return ((MoveAction) action).isReached();
+        return floor.isEmpty() || ((MoveAction) action).isReached();
     }
 
     @Override
@@ -35,5 +35,10 @@ public class FindPelletTask extends Task {
     @Override
     public Coord moveTarget() {
         return floor.getCoord();
+    }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " Floor : " + floor.getCoord();
     }
 }

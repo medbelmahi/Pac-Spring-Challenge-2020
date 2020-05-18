@@ -61,4 +61,8 @@ public class Coord {
     public int hashCode() {
         return Objects.hash(x, y);
     }
+
+    public boolean isCrossedWith(Coord coord) {
+        return coord.x == this.x || coord.y == this.y;
+    }
 }

@@ -2,6 +2,8 @@ package codingame.pac.action;
 
 import codingame.pac.PacMan;
 
+import java.util.Arrays;
+
 /**
  * Mohamed BELMAHI created on 14/05/2020
  */
@@ -14,7 +16,9 @@ public abstract class Action {
 
     public abstract ActionType type();
 
-    public abstract String print(int pacId);
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
+    }
     protected abstract String msg();
 
     public void changeItPacWith(Action action) {

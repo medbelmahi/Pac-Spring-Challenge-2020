@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 public class Grid {
     public static int width;
     public static int height;
-    private HashMap<Coord, Cell> cellsMap;
+    public static HashMap<Coord, Cell> cellsMap;
     private Cell[][] cells;
 
     public Grid(int width, int height, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {

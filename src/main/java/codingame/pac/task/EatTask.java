@@ -36,4 +36,9 @@ public class EatTask extends Task {
     public Coord moveTarget() {
         return isMoveTask() ? ((MoveAction) action).targetCoord() : null;
     }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " to pellet " + pellet.toString();
+    }
 }

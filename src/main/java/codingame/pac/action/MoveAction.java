@@ -23,6 +23,7 @@ public class MoveAction extends Action {
 
     @Override
     public String print(int pacId) {
+        coord = pacMan.nextCoord(coord);
         return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), coord.toString(), msg()));
     }
 

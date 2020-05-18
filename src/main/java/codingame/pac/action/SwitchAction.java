@@ -2,23 +2,22 @@ package codingame.pac.action;
 
 import codingame.pac.PacMan;
 
-import java.util.Arrays;
-
 /**
- * Mohamed BELMAHI created on 14/05/2020
+ * Mohamed BELMAHI created on 16/05/2020
  */
-public class SpeedAction extends Action {
-    public SpeedAction(PacMan pacMan) {
+public class SwitchAction extends Action {
+
+    public SwitchAction(PacMan pacMan) {
         super(pacMan);
     }
 
     @Override
     public ActionType type() {
-        return ActionType.SPEED;
+        return ActionType.SWITCH;
     }
 
     @Override
     protected String msg() {
-        return "S";
+        return "SW-"+type().toString();
     }
 }

@@ -114,7 +114,7 @@ class PacMan {
         this.tour++;
     }
 
-    public boolean canSpeedUp() {
+    public boolean canSpeedUpOrSwitch() {
         return abilityCountdown <= 0;
     }
 
@@ -129,9 +129,9 @@ class PacMan {
         for (Pellet pellet : pellets) {
             double newDistance = pellet.distanceTo(position);
             if (newDistance < nearestDistance) {
-                if (isOnSpeedMode() && !pellet.isSuper() && newDistance < 2) {
+                /*if (isOnSpeedMode() && !pellet.isSuper() && newDistance < 2) {
                     continue;
-                }
+                }*/
                 nearestDistance = newDistance;
                 nearestPellet = pellet;
             }
@@ -177,8 +177,8 @@ class PacMan {
         return this.task != null && !this.task.isFinished();
     }
 
-    public boolean isAlive(int currentTour) {
-        return this.tour >= currentTour;
+    public boolean isAlive() {
+        return !PacManType.DEAD.equals(typeId);
     }
 
     public Action getCurrentAction() {
@@ -222,6 +222,7 @@ class PacMan {
     }
 
     public void setWaitTask() {
+        System.err.println(infoMe() + " set wait task");
         this.task = new WaitTask(new WaitAction(this));
     }
 
@@ -238,6 +239,90 @@ class PacMan {
         }
         System.err.println("pac-" + pacId + " nearTo: " + deepestFloor + " Distance: " + deepestDistance);
         return deepestFloor;
+    }
+
+    public Coord nextCoord(Coord coord) {
+        if (isOnSpeedMode()) {
+            if (coord.distanceTo(this.getCoord()) <= 1) {
+                Coord nextCoord = goForwardByStep(coord);
+                return nextCoord != null ? nextCoord : coord;
+            }
+        }
+        return coord;
+    }
+
+    private Coord goForwardByStep(Coord coord) {
+        Direction direction = getMoveDirection(coord);
+        if (direction != null) {
+            switch (direction) {
+                case LEFT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x - 1, coord.y));
+                case RIGHT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x + 1, coord.y));
+                case UP:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y - 1));
+                case DOWN:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y + 1));
+            }
+        }
+        return null;
+    }
+
+    private Coord getNextCoordIfIsAFloor(Coord coord) {
+        Cell cell = Grid.cellsMap.get(coord);
+        return cell != null && !cell.isWall() ? cell.getCoord() : null;
+    }
+
+    private Direction getMoveDirection(Coord coord) {
+        int x = this.getCoord().x;
+        int y = this.getCoord().y;
+
+        if (x == coord.x) {
+            if (y < coord.y) {
+                return Direction.DOWN;
+            } else {
+                return Direction.UP;
+            }
+        }else if (y == coord.y) {
+            if (x < coord.x) {
+                return Direction.RIGHT;
+            } else {
+                return Direction.LEFT;
+            }
+        }
+        return null;
+    }
+
+    public String printTaskInfo() {
+        return this.task.printInfo();
+    }
+
+    public boolean isVisibleToMe(PacMan otherPacMan) {
+        return getCoord().isCrossedWith(otherPacMan.getCoord());
+    }
+
+    public String infoMe() {
+        return pacId + "-" + typeId + "-" + getCoord();
+    }
+
+    public boolean hasSameType(PacManType pacManType) {
+        return this.typeId.equals(pacManType);
+    }
+
+    public PacManType attackType(PacMan crossedPac) {
+        switch (crossedPac.typeId) {
+            case ROCK: return PacManType.PAPER;
+            case PAPER: return PacManType.SCISSORS;
+            case SCISSORS: return PacManType.ROCK;
+        }
+        return typeId;
+    }
+
+    public boolean noNeedToKeepWaiting(int counter) {
+        if(isOnSpeedMode()) {
+            return counter <= 0 ? true : false;
+        }
+        return true;
     }
 }
 
@@ -319,7 +404,7 @@ class PathFinder {
 
 
 enum CrossedPathsSolution {
-    SWITCH, WAIT, NO_NEED;
+    SWITCH, WAIT, NO_NEED, CHANGE;
 }
 
 
@@ -434,7 +519,7 @@ class PathItem {
 
 
 enum PacManType {
-    ROCK, PAPER, SCISSORS
+    ROCK, PAPER, SCISSORS, DEAD
 }
 
 
@@ -446,7 +531,7 @@ enum PacManType {
 class Grid {
     public static int width;
     public static int height;
-    private HashMap<Coord, Cell> cellsMap;
+    public static HashMap<Coord, Cell> cellsMap;
     private Cell[][] cells;
 
     public Grid(int width, int height, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {
@@ -531,6 +616,21 @@ class ActionBuilder {
 
         return floor.targeted(pacMan);
     }
+
+    public static Action buildAttackAction(PacMan pacMan, PacMan crossedPac) {
+        if (!crossedPac.canSpeedUpOrSwitch()) {
+            PacManType pacManType = pacMan.attackType(crossedPac);
+
+            if (pacMan.hasSameType(pacManType)) {
+                return null;
+            } else {
+                 new SwitchAction(pacMan);
+            }
+        } else {
+            return null;
+        }
+        return null;
+    }
 }
 
 
@@ -614,6 +714,10 @@ class Coord {
     public int hashCode() {
         return Objects.hash(x, y);
     }
+
+    public boolean isCrossedWith(Coord coord) {
+        return coord.x == this.x || coord.y == this.y;
+    }
 }
 
 
@@ -646,6 +750,7 @@ enum  FloorStatus {
 
 
 
+
 /**
  * Mohamed BELMAHI created on 14/05/2020
  */
@@ -654,6 +759,7 @@ class Floor extends Cell {
     private Pellet pallet;
     private FloorStatus floorStatus;
     private boolean targeted;
+    private PacMan targetedForDiscovery;
 
     Floor(Coord coord) {
         super(coord);
@@ -672,8 +778,8 @@ class Floor extends Cell {
     public void noPellet() {
         if (pallet != null) {
             pallet.setStillHere(false);
-            this.floorStatus = FloorStatus.EMPTY;
         }
+        this.floorStatus = FloorStatus.EMPTY;
     }
 
     @Override
@@ -696,7 +802,46 @@ class Floor extends Cell {
 
         MoveAction moveAction = new MoveAction(pacMan, coord);
         pacMan.setTask(new FindPelletTask(moveAction, this));
+        this.targetedForDiscovery = pacMan;
+        markStreetAsTargeted(pacMan);
         return moveAction;
+    }
+
+    private void markStreetAsTargeted(PacMan pacMan) {
+        int x = this.coord.x;
+        int y = this.coord.y;
+
+        for (int i = x - 1; i >= 0; i--) {
+            Cell cell = Grid.cellsMap.get(new Coord(i, y));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = x + 1; i < Grid.width; i++) {
+            Cell cell = Grid.cellsMap.get(new Coord(i, y));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = y - 1; i >= 0; i--) {
+            Cell cell = Grid.cellsMap.get(new Coord(x, i));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = y + 1; i < Grid.height; i++) {
+            Cell cell = Grid.cellsMap.get(new Coord(x, i));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
     }
 
     public boolean isTargeted() {
@@ -706,7 +851,34 @@ class Floor extends Cell {
     public void setTargeted(boolean targeted) {
         this.targeted = targeted;
     }
+
+    public Set<Floor> getSortedEdgesBasedOnDistanceFromTarget(Floor target, Set<Floor> edges) {
+        Set<Floor> sortedEdgesBasedOnDistanceFromTarget = new TreeSet<Floor>((floor1, floor2) -> {
+
+            double floor1DistanceToTarget = floor1.distanceTo(target);
+            double floor2DistanceToTarget = floor2.distanceTo(target);
+            return floor1DistanceToTarget < floor2DistanceToTarget ? -1 : 1;
+        });
+
+        sortedEdgesBasedOnDistanceFromTarget.addAll(edges);
+
+        return sortedEdgesBasedOnDistanceFromTarget;
+    }
+
+    public boolean isEmpty() {
+        return FloorStatus.EMPTY.equals(floorStatus);
+    }
+
+    public boolean isNotTargetedForDiscovery() {
+        return targetedForDiscovery == null || !targetedForDiscovery.isAlive();
+    }
+
+    public void setTargetedForDiscovery(PacMan targetedForDiscovery) {
+        this.targetedForDiscovery = targetedForDiscovery;
+    }
 }
+
+
 
 
 /**
@@ -747,8 +919,67 @@ class Cell {
     public Coord getCoord() {
         return coord;
     }
+
+    public Cell rightCell(Cell[][] cells) {
+        if (coord.getX() + 1 < Grid.width) {
+            Cell cell = cells[coord.getX() + 1][coord.getY()];
+            if (!cell.isWall()) return cell;
+        }
+        return null;
+    }
+
+    public Cell leftCell(Cell[][] cells) {
+        if (coord.getX() - 1 >= 0) {
+            Cell cell = cells[coord.getX() - 1][coord.getY()];
+            if (!cell.isWall()) return cell;
+        }
+        return null;
+    }
+
+    public Cell upCell(Cell[][] cells) {
+        if (coord.getY() - 1 >= 0) {
+            Cell cell = cells[coord.getX()][coord.getY() - 1];
+            if (!cell.isWall()) return cell;
+        }
+        return null;
+    }
+
+    public Cell downCell(Cell[][] cells) {
+        if (coord.getY() + 1 < Grid.height) {
+            Cell cell = cells[coord.getX()][coord.getY() + 1];
+            if (!cell.isWall()) return cell;
+        }
+        return null;
+    }
 }
 
+
+enum Direction {
+    LEFT, RIGHT, UP, DOWN
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 16/05/2020
+ */
+class SwitchAction extends Action {
+
+    public SwitchAction(PacMan pacMan) {
+        super(pacMan);
+    }
+
+    @Override
+    public ActionType type() {
+        return ActionType.SWITCH;
+    }
+
+    @Override
+    protected String msg() {
+        return "SW-"+type().toString();
+    }
+}
 
 
 
@@ -756,6 +987,7 @@ class Cell {
  * Mohamed BELMAHI created on 15/05/2020
  */
 class WaitAction extends Action {
+    int counter = 2;
     public WaitAction(PacMan pacMan) {
         super(pacMan);
     }
@@ -767,12 +999,17 @@ class WaitAction extends Action {
 
     @Override
     public String print(int pacId) {
-        return String.join(" ", type().toString(), String.valueOf(pacId), msg());
+        counter--;
+        return super.print(pacId);
     }
 
     @Override
     protected String msg() {
         return "W";
+    }
+
+    public boolean isFinished() {
+        return pacMan.noNeedToKeepWaiting(counter);
     }
 }
 
@@ -797,6 +1034,7 @@ class MoveAction extends Action {
 
     @Override
     public String print(int pacId) {
+        coord = pacMan.nextCoord(coord);
         return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), coord.toString(), msg()));
     }
 
@@ -839,15 +1077,11 @@ class SpeedAction extends Action {
     }
 
     @Override
-    public String print(int pacId) {
-        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
-    }
-
-    @Override
     protected String msg() {
         return "S";
     }
 }
+
 
 
 
@@ -863,7 +1097,9 @@ abstract class Action {
 
     public abstract ActionType type();
 
-    public abstract String print(int pacId);
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
+    }
     protected abstract String msg();
 
     public void changeItPacWith(Action action) {
@@ -874,6 +1110,178 @@ abstract class Action {
 
     public String printCommand() {
         return pacMan.doCommand(this);
+    }
+}
+
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class Node<T extends Floor> {
+    private T node;
+    private Set<T> children;
+
+    Node(T node, Set<T> children) {
+       this.node = node;
+        this.children = children;
+    }
+
+    public Set<T> getChildren() {
+        return children;
+    }
+
+    public T getNode() {
+        return node;
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class Graph {
+    Map<Coord, Node> nodes = new HashMap<>();
+
+    public Node getNodeByCoord(Coord coord) {
+        return nodes.get(coord);
+    }
+
+    public void addNode(Floor currentCell, Set<Floor> edges) {
+        nodes.put(currentCell.getCoord(), new Node(currentCell, edges));
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class GraphBuilder {
+    public static Graph CreateGraph(Set<Floor> places, Cell[][] cells) {
+        Graph graph = new Graph();
+
+        for (Floor currentCell : places) {
+
+            Cell right = currentCell.rightCell(cells);
+            Cell left = currentCell.leftCell(cells);
+            Cell up = currentCell.upCell(cells);
+            Cell down = currentCell.downCell(cells);
+
+            Set<Floor> edges = new HashSet<>();
+            addToEdges(right, edges);
+            addToEdges(left, edges);
+            addToEdges(up, edges);
+            addToEdges(down, edges);
+
+            graph.addNode(currentCell, edges);
+        }
+
+        return graph;
+    }
+
+    private static void addToEdges(Cell right, Set<Floor> edges) {
+        if (right != null) {
+            edges.add((Floor) right);
+        }
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class BreadthFirstSearch {
+    private Graph graph;
+
+    public BreadthFirstSearch(Graph graph){
+        this.graph = graph;
+    }
+
+    public boolean compute(Coord from, Coord to){
+
+        Node startNode = graph.getNodeByCoord(from);
+        Node goalNode = graph.getNodeByCoord(to);
+
+        if(startNode.equals(goalNode)){
+            System.out.println("Goal Node Found!");
+            System.out.println(startNode);
+        }
+
+        Queue<Floor> queue = new LinkedList<>();
+        ArrayList<Floor> explored = new ArrayList<>();
+        queue.add(startNode.getNode());
+        explored.add(startNode.getNode());
+
+        while(!queue.isEmpty()){
+            Floor current = queue.remove();
+            if(current.equals(goalNode.getNode())) {
+                System.out.println(explored);
+                return true;
+            }
+            else{
+                Node currentNode = graph.getNodeByCoord(current.getCoord());
+                if(currentNode.getChildren().isEmpty())
+                    return false;
+                else
+                    queue.addAll(current.getSortedEdgesBasedOnDistanceFromTarget(goalNode.getNode(), currentNode.getChildren()));
+            }
+            explored.add(current);
+        }
+
+        return false;
+
+    }
+
+    public List<Floor> getOptimalPath(final Floor source, final Floor destination) {
+
+        List<Floor> alreadyList = new ArrayList<>();
+
+        final List<Floor> path = recursive(source, destination, alreadyList);
+        return path;
+    }
+
+    private List<Floor> recursive(Floor current, Floor destination, List<Floor> alreadyList) {
+        final List<Floor> path = new ArrayList<>();
+
+        alreadyList.add(current);
+        if (current == destination) {
+            path.add(current);
+            return path;
+        }
+
+        //System.err.println("current : " + current.getCoordinates().toString());
+        Node currentNode = graph.getNodeByCoord(current.getCoord());
+
+        Set<Floor> sortedEdges = current.getSortedEdgesBasedOnDistanceFromTarget(destination, currentNode.getChildren());
+
+        for (final Floor edge : sortedEdges) {
+            if (!alreadyList.contains(edge)) {
+                if (edge != destination) {
+                    path.add(edge);
+                }
+                final List<Floor> recursivePath = recursive(edge, destination, alreadyList);
+                if (!recursivePath.isEmpty() && recursivePath.get(recursivePath.size() - 1) == destination) {
+                    path.addAll(recursivePath);
+                    return path;
+                } else {
+                    path.remove(path.size() - 1);
+                }
+            }
+        }
+
+        if (!path.isEmpty() && path.get(path.size() - 1) != destination) {
+            return new ArrayList<>();
+        }
+
+        return path;
     }
 }
 
@@ -911,6 +1319,11 @@ class EatTask extends Task {
     public Coord moveTarget() {
         return isMoveTask() ? ((MoveAction) action).targetCoord() : null;
     }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " to pellet " + pellet.toString();
+    }
 }
 
 
@@ -919,19 +1332,18 @@ class EatTask extends Task {
  * Mohamed BELMAHI created on 15/05/2020
  */
 class WaitTask extends Task {
-
     public WaitTask(Action action) {
         super(action);
     }
 
     @Override
     public boolean isFinished() {
-        return true;
+        return ((WaitAction) action).isFinished();
     }
 
     @Override
     public Action keepTargeting() {
-        return null;
+        return action;
     }
 
     @Override
@@ -942,6 +1354,11 @@ class WaitTask extends Task {
     @Override
     public Coord moveTarget() {
         return null;
+    }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName();
     }
 }
 
@@ -960,7 +1377,7 @@ class FindPelletTask extends Task {
 
     @Override
     public boolean isFinished() {
-        return ((MoveAction) action).isReached();
+        return floor.isEmpty() || ((MoveAction) action).isReached();
     }
 
     @Override
@@ -977,6 +1394,11 @@ class FindPelletTask extends Task {
     @Override
     public Coord moveTarget() {
         return floor.getCoord();
+    }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " Floor : " + floor.getCoord();
     }
 }
 
@@ -1002,6 +1424,8 @@ abstract class Task {
     }
 
     public abstract Coord moveTarget();
+
+    public abstract String printInfo();
 }
 
 
@@ -1027,17 +1451,38 @@ class Config {
  */
 class Game {
 
-    public static CrossedPathsSolution calculatePathsAndCheckIfTheyAreCrossed(PacMan pacMan1, PacMan pacMan2, Cell[][] cells, PathFinder pathfinder) {
-        List<Coord> path1 = pathfinder
-                .from(pacMan1.getCoord())
-                .to(pacMan1.getTarget())
-                .findPath().path;
+    private PathFinder pathfinder;
+    private final Grid grid;
+    private final Set<Floor> floors;
+    private final HashMap<Coord, Cell> cellsMap;
+    private final Cell[][] cells;
 
-        List<Coord> path2 = pathfinder
-                .from(pacMan2.getCoord())
-                .to(pacMan2.getTarget())
+    public Game(PathFinder pathfinder, Grid grid, Set<Floor> floors, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {
+
+        this.pathfinder = pathfinder;
+        this.grid = grid;
+        this.floors = floors;
+        this.cellsMap = cellsMap;
+        this.cells = cells;
+    }
+
+    public static CrossedPathsSolution calculatePathsAndCheckIfTheyAreCrossed(PacMan pacMan1, PacMan pacMan2, PathFinder pathfinder, boolean reverseCheck) {
+        if (!reverseCheck){
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan1.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan2.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        } else {
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan2.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan1.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        }
+    }
+
+    private static List<Coord> getPath(Coord source, Coord target, PathFinder pathfinder) {
+        return pathfinder
+                .from(source)
+                .to(target)
                 .findPath().path;
-        return isCrossedPaths(path1, path2, pacMan1, pacMan2);
     }
 
     public static CrossedPathsSolution isCrossedPaths(List<Coord> path1, List<Coord> path2, PacMan pacMan1, PacMan pacMan2) {
@@ -1091,7 +1536,7 @@ class Game {
         System.err.println(message + " = " + durationInMillis + "ms");
     }
 
-    public static void ifCrossedPathsDoSwitchTask(Set<PacMan> pacManSet, Cell[][] cells, PathFinder pathfinder) {
+    public static void ifCrossedPathsDoSwitchTask(Set<PacMan> pacManSet, PathFinder pathfinder, List<Action> actionsList, Set<Floor> floors, int finalTour) {
         List<PacMan> blockedPac = new ArrayList<>();
 
         pacManSet.forEach(pacMan -> {
@@ -1099,17 +1544,51 @@ class Game {
                 Stream<PacMan> pacManStream = Game.otherPacmen(pacMan, pacManSet);
                 Optional<PacMan> firstOne = pacManStream.filter(pac -> pac.distanceTo(pacMan) <= 2.0).findFirst();
                 if (firstOne.isPresent() && !blockedPac.contains(firstOne.get())) {
-                    CrossedPathsSolution crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), cells, pathfinder);
+                    CrossedPathsSolution crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, false);
                     if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
-                        pacMan.switchTasksWith(firstOne.get());
-                        blockedPac.add(pacMan);
-                        blockedPac.add(firstOne.get());
+                        /*crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, true);
+                        if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
+                            actionsList.remove(pacMan.getCurrentAction());
+                            MoveAction moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
+                            if (moveAction != null) {
+                                actionsList.add(moveAction);
+                            } else {
+                                pacMan.setWaitTask();
+                                actionsList.add(pacMan.getCurrentAction());
+                            }
+                        } else {*/
+                            pacMan.switchTasksWith(firstOne.get());
+                            blockedPac.add(pacMan);
+                            blockedPac.add(firstOne.get());
+                        //}
                     } else if (CrossedPathsSolution.WAIT.equals(crossedPathsSolution)) {
                         pacMan.setWaitTask();
                     }
                 }
             }
         });
+    }
+
+    public PacMan checkIfThEnemyIsAttackingMe(PacMan pacMan, List<PacMan> otherPacMen) {
+        if (otherPacMen.isEmpty()) {
+            return null;
+        }
+
+        Optional<PacMan> first = otherPacMen.stream().filter(otherPacMan -> pacMan.isVisibleToMe(otherPacMan)).sorted((o1, o2) -> {
+            return o1.distanceTo(pacMan) > o2.distanceTo(pacMan) ? 1 : -1;
+        }).findFirst();
+
+        if (!first.isPresent()) {
+            return null;
+        }
+
+        PacMan attacker = first.get();
+        System.err.println(pacMan.infoMe() + " is crossing " + attacker.infoMe());
+        if (attacker.distanceTo(pacMan) <= 3) {
+            System.err.println(pacMan.infoMe() + " under attack by " + attacker.infoMe());
+            return attacker;
+        }
+        return null;
     }
 }
 
@@ -1150,8 +1629,14 @@ class Player {
         Grid grid = new Grid(width, height, cellsMap, cells);
         PathFinder pathfinder = new PathFinder().setGrid(grid);
 
+        Game game = new Game(pathfinder, grid, floors, cellsMap, cells);
+
+        Game.printEndTime(startTime, "PATH");
+
         Map<String, PacMan> pacManMap = new HashMap<>();
         Set<Pellet> pellets = new HashSet<>();
+        Set<PacMan> myPacMen = new HashSet<>();
+        List<PacMan> otherPacMen = new ArrayList<>(5);
         Map<Coord, Pellet> pelletMap = new HashMap<>();
         int tour = 0;
         // game loop
@@ -1161,6 +1646,7 @@ class Player {
             int myScore = in.nextInt();
             int opponentScore = in.nextInt();
             int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
+            otherPacMen.clear();
             for (int i = 0; i < visiblePacCount; i++) {
                 int pacId = in.nextInt(); // pac number (unique within a team)
                 boolean mine = in.nextInt() != 0; // true if this pac is yours
@@ -1170,18 +1656,26 @@ class Player {
                 int speedTurnsLeft = in.nextInt(); // unused in wood leagues
                 int abilityCooldown = in.nextInt(); // unused in wood leagues
 
-                if (mine) {
-                    PacMan pacMan = pacManMap.get(pacId + "-" + mine);
-                    if (pacMan != null) {
-                        pacMan.update(typeId, cells[x][y], speedTurnsLeft, abilityCooldown);
+
+                PacMan pacMan = pacManMap.get(pacId + "-" + mine);
+                if (pacMan != null) {
+                    pacMan.update(typeId, cells[x][y], speedTurnsLeft, abilityCooldown);
+                    if (!mine) {
+                        otherPacMen.add(pacMan);
+                    }
+                } else {
+                    pacMan = new PacMan(pacId, cells[x][y], typeId, speedTurnsLeft, abilityCooldown);
+                    pacManMap.put(pacId + "-" + mine, pacMan);
+                    if (mine) {
+                        myPacMen.add(pacMan);
                     } else {
-                        pacMan = new PacMan(pacId, cells[x][y], typeId, speedTurnsLeft, abilityCooldown);
-                        pacManMap.put(pacId + "-" + mine, pacMan);
+                        otherPacMen.add(pacMan);
                     }
                 }
                 Floor floor = (Floor) cells[x][y];
                 floor.noPellet();
             }
+
             Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
             int visiblePelletCount = in.nextInt(); // all pellets in sight
             for (int i = 0; i < visiblePelletCount; i++) {
@@ -1199,24 +1693,37 @@ class Player {
 
                 newVisiblePellets.put(coord, pellet);
             }
-            Game.updateBasedOnPacManVisibility(newVisiblePellets, pacManMap.values(), cells);
+            int finalTour = tour;
+            Set<PacMan> alivePacMen = myPacMen.stream().filter(pacMan -> pacMan.isAlive()).collect(Collectors.toSet());
+
+            Game.updateBasedOnPacManVisibility(newVisiblePellets, alivePacMen, cells);
             pellets.parallelStream().forEach(Pellet::notTargeted);
 
-            grid.printGrid();
+            //grid.printGrid();
             Game.printEndTime(startTime, "0 - Tour number ("+tour +")");
             List<Action> actionsList = new ArrayList<>();
 
             Set<Pellet> finalPellets = pellets.parallelStream().filter(pellet -> pellet.isStillHere()).collect(Collectors.toSet());
 
-            int finalTour = tour;
-            pacManMap.values().stream().filter(pacMan -> pacMan.isAlive(finalTour) && pacMan.hasTask()).forEach(pacMan -> {
-                actionsList.add(pacMan.getCurrentAction());
-            });
-            pacManMap.values().stream().filter(pacMan -> pacMan.isAlive(finalTour) && !pacMan.hasTask()).forEach(pacMan -> {
-                if (pacMan.canSpeedUp()) {
+            alivePacMen.stream().filter(pacMan -> pacMan.hasTask()).forEach(pacMan -> {
+                boolean canSpeedUpOrSwitch = pacMan.canSpeedUpOrSwitch();
+                if (canSpeedUpOrSwitch) {
                     actionsList.add(new SpeedAction(pacMan));
                 } else {
-                    MoveAction moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
+                    actionsList.add(pacMan.getCurrentAction());
+                }
+            });
+            Game.printEndTime(startTime, "1 - Tour number ("+tour +")");
+            alivePacMen.stream().filter(pacMan -> !pacMan.hasTask()).forEach(pacMan -> {
+                Action moveAction = null;
+                if (pacMan.canSpeedUpOrSwitch()) {
+                    moveAction = new SpeedAction(pacMan);
+                }
+                if ((moveAction != null)){
+                    actionsList.add(moveAction);
+                }
+                else {
+                    moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
                             .filter(pellet -> pellet.isSuper() && !pellet.isTargeted()).collect(Collectors.toSet()), pacMan);
                     if (moveAction != null) {
                         actionsList.add(moveAction);
@@ -1226,7 +1733,7 @@ class Player {
                         if (moveAction != null) {
                             actionsList.add(moveAction);
                         }else {
-                            moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden()).collect(Collectors.toSet()), pacMan);
+                            moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
                             if (moveAction != null) {
                                 actionsList.add(moveAction);
                             }
@@ -1234,8 +1741,8 @@ class Player {
                     }
                 }
             });
-
-            Game.ifCrossedPathsDoSwitchTask(pacManMap.values().stream().filter(pacMan -> pacMan.isAlive(finalTour) && pacMan.hasMoveTask()).collect(Collectors.toSet()), cells, pathfinder);
+            Game.printEndTime(startTime, "3 - Tour number ("+tour +")");
+            Game.ifCrossedPathsDoSwitchTask(alivePacMen.stream().filter(PacMan::hasMoveTask).collect(Collectors.toSet()), pathfinder, actionsList, floors, finalTour);
 
             String actions = String.join(" | ", actionsList.stream().map(Action::printCommand).collect(Collectors.toList()));
             Game.printEndTime(startTime, "99 - Tour number ("+tour +")");

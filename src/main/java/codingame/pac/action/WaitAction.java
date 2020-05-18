@@ -6,6 +6,7 @@ import codingame.pac.PacMan;
  * Mohamed BELMAHI created on 15/05/2020
  */
 public class WaitAction extends Action {
+    int counter = 2;
     public WaitAction(PacMan pacMan) {
         super(pacMan);
     }
@@ -17,11 +18,16 @@ public class WaitAction extends Action {
 
     @Override
     public String print(int pacId) {
-        return String.join(" ", type().toString(), String.valueOf(pacId), msg());
+        counter--;
+        return super.print(pacId);
     }
 
     @Override
     protected String msg() {
         return "W";
+    }
+
+    public boolean isFinished() {
+        return pacMan.noNeedToKeepWaiting(counter);
     }
 }

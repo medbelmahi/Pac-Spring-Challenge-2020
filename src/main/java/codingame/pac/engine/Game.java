@@ -1,7 +1,11 @@
 package codingame.pac.engine;
 
+import codingame.pac.ActionBuilder;
+import codingame.pac.Grid;
 import codingame.pac.PacMan;
 import codingame.pac.Pellet;
+import codingame.pac.action.Action;
+import codingame.pac.action.MoveAction;
 import codingame.pac.cell.Cell;
 import codingame.pac.cell.Coord;
 import codingame.pac.cell.Floor;
@@ -10,12 +14,14 @@ import codingame.pac.pathfinder.PathFinder;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -23,17 +29,38 @@ import java.util.stream.Stream;
  */
 public class Game {
 
-    public static CrossedPathsSolution calculatePathsAndCheckIfTheyAreCrossed(PacMan pacMan1, PacMan pacMan2, Cell[][] cells, PathFinder pathfinder) {
-        List<Coord> path1 = pathfinder
-                .from(pacMan1.getCoord())
-                .to(pacMan1.getTarget())
-                .findPath().path;
+    private PathFinder pathfinder;
+    private final Grid grid;
+    private final Set<Floor> floors;
+    private final HashMap<Coord, Cell> cellsMap;
+    private final Cell[][] cells;
 
-        List<Coord> path2 = pathfinder
-                .from(pacMan2.getCoord())
-                .to(pacMan2.getTarget())
+    public Game(PathFinder pathfinder, Grid grid, Set<Floor> floors, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {
+
+        this.pathfinder = pathfinder;
+        this.grid = grid;
+        this.floors = floors;
+        this.cellsMap = cellsMap;
+        this.cells = cells;
+    }
+
+    public static CrossedPathsSolution calculatePathsAndCheckIfTheyAreCrossed(PacMan pacMan1, PacMan pacMan2, PathFinder pathfinder, boolean reverseCheck) {
+        if (!reverseCheck){
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan1.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan2.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        } else {
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan2.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan1.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        }
+    }
+
+    private static List<Coord> getPath(Coord source, Coord target, PathFinder pathfinder) {
+        return pathfinder
+                .from(source)
+                .to(target)
                 .findPath().path;
-        return isCrossedPaths(path1, path2, pacMan1, pacMan2);
     }
 
     public static CrossedPathsSolution isCrossedPaths(List<Coord> path1, List<Coord> path2, PacMan pacMan1, PacMan pacMan2) {
@@ -87,7 +114,7 @@ public class Game {
         System.err.println(message + " = " + durationInMillis + "ms");
     }
 
-    public static void ifCrossedPathsDoSwitchTask(Set<PacMan> pacManSet, Cell[][] cells, PathFinder pathfinder) {
+    public static void ifCrossedPathsDoSwitchTask(Set<PacMan> pacManSet, PathFinder pathfinder, List<Action> actionsList, Set<Floor> floors, int finalTour) {
         List<PacMan> blockedPac = new ArrayList<>();
 
         pacManSet.forEach(pacMan -> {
@@ -95,16 +122,50 @@ public class Game {
                 Stream<PacMan> pacManStream = Game.otherPacmen(pacMan, pacManSet);
                 Optional<PacMan> firstOne = pacManStream.filter(pac -> pac.distanceTo(pacMan) <= 2.0).findFirst();
                 if (firstOne.isPresent() && !blockedPac.contains(firstOne.get())) {
-                    CrossedPathsSolution crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), cells, pathfinder);
+                    CrossedPathsSolution crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, false);
                     if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
-                        pacMan.switchTasksWith(firstOne.get());
-                        blockedPac.add(pacMan);
-                        blockedPac.add(firstOne.get());
+                        /*crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, true);
+                        if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
+                            actionsList.remove(pacMan.getCurrentAction());
+                            MoveAction moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
+                            if (moveAction != null) {
+                                actionsList.add(moveAction);
+                            } else {
+                                pacMan.setWaitTask();
+                                actionsList.add(pacMan.getCurrentAction());
+                            }
+                        } else {*/
+                            pacMan.switchTasksWith(firstOne.get());
+                            blockedPac.add(pacMan);
+                            blockedPac.add(firstOne.get());
+                        //}
                     } else if (CrossedPathsSolution.WAIT.equals(crossedPathsSolution)) {
                         pacMan.setWaitTask();
                     }
                 }
             }
         });
+    }
+
+    public PacMan checkIfThEnemyIsAttackingMe(PacMan pacMan, List<PacMan> otherPacMen) {
+        if (otherPacMen.isEmpty()) {
+            return null;
+        }
+
+        Optional<PacMan> first = otherPacMen.stream().filter(otherPacMan -> pacMan.isVisibleToMe(otherPacMan)).sorted((o1, o2) -> {
+            return o1.distanceTo(pacMan) > o2.distanceTo(pacMan) ? 1 : -1;
+        }).findFirst();
+
+        if (!first.isPresent()) {
+            return null;
+        }
+
+        PacMan attacker = first.get();
+        System.err.println(pacMan.infoMe() + " is crossing " + attacker.infoMe());
+        if (attacker.distanceTo(pacMan) <= 3) {
+            System.err.println(pacMan.infoMe() + " under attack by " + attacker.infoMe());
+            return attacker;
+        }
+        return null;
     }
 }

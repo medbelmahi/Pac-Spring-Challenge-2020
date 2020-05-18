@@ -23,4 +23,6 @@ public abstract class Task {
     }
 
     public abstract Coord moveTarget();
+
+    public abstract String printInfo();
 }
