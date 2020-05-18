@@ -1,183 +1,183 @@
 package codingame;
 
-import codingame.pac.Coord;
-import codingame.pac.Gamer;
-import codingame.pac.Pacman;
-import codingame.pac.PacmanType;
-import codingame.pac.cell.Cell;
-import codingame.pac.Game;
+import codingame.pac.ActionBuilder;
 import codingame.pac.Grid;
-import codingame.pac.cell.CellPrototype;
+import codingame.pac.PacMan;
+import codingame.pac.Pellet;
+import codingame.pac.action.Action;
+import codingame.pac.action.SpeedAction;
+import codingame.pac.cell.Cell;
+import codingame.pac.cell.CellFactory;
+import codingame.pac.cell.Coord;
 import codingame.pac.cell.Floor;
+import codingame.pac.engine.Game;
+import codingame.pac.pathfinder.PathFinder;
 
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Grab the pellets as fast as you can!
  **/
-public class Player {
+class Player {
 
-    public static void main(String args[]) throws InterruptedException {
+    public static void main(String args[]) {
+        long startTime = System.nanoTime();
         Scanner in = new Scanner(System.in);
         int width = in.nextInt(); // size of the grid
         int height = in.nextInt(); // top left corner is (x=0, y=0)
         if (in.hasNextLine()) {
             in.nextLine();
         }
-
         Cell[][] cells = new Cell[width][height];
-        final Set<Floor> places = new HashSet<>();
+        HashMap<Coord, Cell> cellsMap = new HashMap<>();
+        Set<Floor> floors = new HashSet<>();
         for (int i = 0; i < height; i++) {
-            int y = i;
             String row = in.nextLine(); // one line of the grid: space " " is floor, pound "#" is wall
-
-            char[] cellsInput = row.toCharArray();
-            for (int x = 0; x < cellsInput.length; x++) {
-                Cell cell = CellPrototype.getCell(cellsInput[x], x, y);
-                cells[x][y] = cell;
-                if (cell instanceof Floor) {
-                    places.add((Floor) cell);
+            System.err.println(row);
+            char[] inputTypes = row.toCharArray();
+            for (int x = 0; x < inputTypes.length; x++) {
+                Coord coord = new Coord(x, i);
+                Cell cell = CellFactory.createCell(inputTypes[x], coord);
+                cells[x][i] = cell;
+                cellsMap.put(coord, cell);
+                if (!cell.isWall()) {
+                    floors.add((Floor) cell);
                 }
             }
         }
 
-        Grid grid = new Grid(cells, places, width, height);
+        Grid grid = new Grid(width, height, cellsMap, cells);
+        PathFinder pathfinder = new PathFinder().setGrid(grid);
 
-        //grid.printGrid();
-        Game game = new Game(grid);
-        Gamer me = new Gamer();
-        game.setMe(me);
-        Gamer opponent = new Gamer();
-        game.setOpponent(opponent);
+        Game game = new Game(pathfinder, grid, floors, cellsMap, cells);
 
-        Map<String, Pacman> pacmanMap = new HashMap<>();
+        Game.printEndTime(startTime, "PATH");
 
-        // Start First Tour -------------------------------------------------------------------------------------------
-        int tour = 1;
-        long startTime = System.nanoTime();
-        setScores(in, me, opponent);
-
-        int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
-        for (int i = 0; i < visiblePacCount; i++) {
-            int pacId = in.nextInt(); // pac number (unique within a team)
-            boolean mine = in.nextInt() != 0; // true if this pac is yours
-            int x = in.nextInt(); // position in the grid
-            int y = in.nextInt(); // position in the grid
-            String typeId = in.next(); // unused in wood leagues
-            int speedTurnsLeft = in.nextInt(); // unused in wood leagues
-            int abilityCooldown = in.nextInt(); // unused in wood leagues
-
-            Pacman pacman;
-            if (mine) {
-                pacman = new Pacman(pacId, 0, me, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
-            } else {
-                pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
-            }
-            pacmanMap.put(pacId + "-" + mine, pacman);
-        }
-
-        LinkedList<Pellet> pellets = new LinkedList<>();
-        Set<Pellet> superPellets = new HashSet<>();
+        Map<String, PacMan> pacManMap = new HashMap<>();
+        Set<Pellet> pellets = new HashSet<>();
+        Set<PacMan> myPacMen = new HashSet<>();
+        List<PacMan> otherPacMen = new ArrayList<>(5);
         Map<Coord, Pellet> pelletMap = new HashMap<>();
-        int visiblePelletCount = in.nextInt(); // all pellets in sight
-        for (int i = 0; i < visiblePelletCount; i++) {
-            int x = in.nextInt();
-            int y = in.nextInt();
-            int value = in.nextInt(); // amount of points this pellet is worth
-
-            Coord coord = new Coord(x, y);
-            Pellet pellet = new Pellet(coord, value);
-            if (value == 10) {
-                superPellets.add(pellet);
-            } else {
-                pellets.add(pellet);
-            }
-            pelletMap.put(coord, pellet);
-        }
-        game.setPellets(pellets);
-        game.setSuperPellets(superPellets);
-        System.out.println(game.play());
-        printEndTime(startTime, "First Tour");
-        // Start First Tour -------------------------------------------------------------------------------------------
-
-
-
-        // game loop after first tour
+        int tour = 0;
+        // game loop
         while (true) {
             startTime = System.nanoTime();
             tour++;
-            setScores(in, me, opponent);
-
-            visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
+            int myScore = in.nextInt();
+            int opponentScore = in.nextInt();
+            int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
+            otherPacMen.clear();
             for (int i = 0; i < visiblePacCount; i++) {
                 int pacId = in.nextInt(); // pac number (unique within a team)
                 boolean mine = in.nextInt() != 0; // true if this pac is yours
-
-                //System.err.println(key);
-
                 int x = in.nextInt(); // position in the grid
                 int y = in.nextInt(); // position in the grid
                 String typeId = in.next(); // unused in wood leagues
                 int speedTurnsLeft = in.nextInt(); // unused in wood leagues
                 int abilityCooldown = in.nextInt(); // unused in wood leagues
 
-                String key = pacId + "-" + mine;
-                Pacman pacman = pacmanMap.get(key);
-                if (pacman == null) {
-                    pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, tour);
-                    pacmanMap.put(key, pacman);
-                }else {
-                    pacman.setSpeedTurnsLeft(speedTurnsLeft);
-                    pacman.setType(PacmanType.fromInput(typeId));
-                    pacman.setPosition(new Coord(x, y));
-                    pacman.setAbilityCooldown(abilityCooldown);
-                    pacman.update();
-                }
-            }
-            setDeadPacmen(pacmanMap.values(), tour);
-            visiblePelletCount = in.nextInt(); // all pellets in sight
 
-            pellets.clear();
-            superPellets.clear();
+                PacMan pacMan = pacManMap.get(pacId + "-" + mine);
+                if (pacMan != null) {
+                    pacMan.update(typeId, cells[x][y], speedTurnsLeft, abilityCooldown);
+                    if (!mine) {
+                        otherPacMen.add(pacMan);
+                    }
+                } else {
+                    pacMan = new PacMan(pacId, cells[x][y], typeId, speedTurnsLeft, abilityCooldown);
+                    pacManMap.put(pacId + "-" + mine, pacMan);
+                    if (mine) {
+                        myPacMen.add(pacMan);
+                    } else {
+                        otherPacMen.add(pacMan);
+                    }
+                }
+                Floor floor = (Floor) cells[x][y];
+                floor.noPellet();
+            }
+
+            Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
+            int visiblePelletCount = in.nextInt(); // all pellets in sight
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
                 int value = in.nextInt(); // amount of points this pellet is worth
 
-                Pellet pellet = new Pellet(new Coord(x, y), value);
-                if (value == 10) {
-                    superPellets.add(pellet);
-                } else {
+                Coord coord = new Coord(x, y);
+                Pellet pellet = pelletMap.get(coord);
+                if (pellet == null) {
+                    pellet = new Pellet(coord, (Floor) cells[x][y], value);
                     pellets.add(pellet);
+                    pelletMap.put(coord, pellet);
                 }
-            }
-            game.setPellets(pellets);
-            game.setSuperPellets(superPellets);
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
 
-            System.out.println(game.play());
-            printEndTime(startTime, "Tour number ("+tour +")");
+                newVisiblePellets.put(coord, pellet);
+            }
+            int finalTour = tour;
+            Set<PacMan> alivePacMen = myPacMen.stream().filter(pacMan -> pacMan.isAlive()).collect(Collectors.toSet());
+
+            Game.updateBasedOnPacManVisibility(newVisiblePellets, alivePacMen, cells);
+            pellets.parallelStream().forEach(Pellet::notTargeted);
+
+            //grid.printGrid();
+            Game.printEndTime(startTime, "0 - Tour number ("+tour +")");
+            List<Action> actionsList = new ArrayList<>();
+
+            Set<Pellet> finalPellets = pellets.parallelStream().filter(pellet -> pellet.isStillHere()).collect(Collectors.toSet());
+
+            alivePacMen.stream().filter(pacMan -> pacMan.hasTask()).forEach(pacMan -> {
+                boolean canSpeedUpOrSwitch = pacMan.canSpeedUpOrSwitch();
+                if (canSpeedUpOrSwitch) {
+                    actionsList.add(new SpeedAction(pacMan));
+                } else {
+                    actionsList.add(pacMan.getCurrentAction());
+                }
+            });
+            Game.printEndTime(startTime, "1 - Tour number ("+tour +")");
+            alivePacMen.stream().filter(pacMan -> !pacMan.hasTask()).forEach(pacMan -> {
+                Action moveAction = null;
+                if (pacMan.canSpeedUpOrSwitch()) {
+                    moveAction = new SpeedAction(pacMan);
+                }
+                if ((moveAction != null)){
+                    actionsList.add(moveAction);
+                }
+                else {
+                    moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
+                            .filter(pellet -> pellet.isSuper() && !pellet.isTargeted()).collect(Collectors.toSet()), pacMan);
+                    if (moveAction != null) {
+                        actionsList.add(moveAction);
+                    } else {
+                        moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
+                                .filter(pellet -> !pellet.isSuper() && !pellet.isTargeted()).collect(Collectors.toSet()), pacMan);
+                        if (moveAction != null) {
+                            actionsList.add(moveAction);
+                        }else {
+                            moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
+                            if (moveAction != null) {
+                                actionsList.add(moveAction);
+                            }
+                        }
+                    }
+                }
+            });
+            Game.printEndTime(startTime, "3 - Tour number ("+tour +")");
+            Game.ifCrossedPathsDoSwitchTask(alivePacMen.stream().filter(PacMan::hasMoveTask).collect(Collectors.toSet()), pathfinder, actionsList, floors, finalTour);
+
+            String actions = String.join(" | ", actionsList.stream().map(Action::printCommand).collect(Collectors.toList()));
+            Game.printEndTime(startTime, "99 - Tour number ("+tour +")");
+            System.out.println(actions); // MOVE <pacId> <x> <y>
         }
     }
 
-    private static void setDeadPacmen(Collection<Pacman> pacmen, int currentTour) {
-        pacmen.forEach(pacman -> pacman.setDead(currentTour));
-    }
 
-    private static void printEndTime(long startTime, String message) {
-        long endTime = System.nanoTime();
-        long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
-        long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
 
-        System.err.println(message + " = " + durationInMillis + "ms");
-    }
 
-    private static void setScores(Scanner in, Gamer me, Gamer opponent) {
-        int myScore = in.nextInt();
-        me.setScore(myScore);
-        int opponentScore = in.nextInt();
-        opponent.setScore(opponentScore);
-    }
 }

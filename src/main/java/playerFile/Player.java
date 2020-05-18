@@ -4,522 +4,579 @@ import java.io.*;
 import java.math.*;
 import java.util.stream.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.*;
 
 
 
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
 class Pellet {
-    private Coord coord;
-    private int amount;
+    private final Coord coord;
+    private final Floor floor;
+    private final int value;
+    private boolean stillHere;
+    private boolean targeted;
 
-    public Pellet(Coord coord, int amount) {
+    public Pellet(Coord coord, Floor floor, int value) {
         this.coord = coord;
-        this.amount = amount;
+        this.floor = floor;
+        this.value = value;
+        this.stillHere = true;
+        floor.setPallet(this);
+    }
+
+    public boolean isSuper() {
+        return this.value > 1;
+    }
+
+    public MoveAction targeted(PacMan pacMan) {
+        this.targeted = true;
+
+        MoveAction moveAction = new MoveAction(pacMan, coord);
+        pacMan.setTask(new EatTask(moveAction, this));
+        return moveAction;
+    }
+
+    public double distanceTo(Floor floor) {
+        return this.floor.distanceTo(floor);
+    }
+
+    public void setStillHere(boolean stillHere) {
+        this.stillHere = stillHere;
+    }
+
+    public boolean isStillHere() {
+        return stillHere;
+    }
+
+    public boolean isTargeted() {
+        return targeted;
+    }
+
+    public void notTargeted() {
+        this.targeted = false;
+    }
+
+    @Override
+    public String toString() {
+        return coord.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Pellet pellet = (Pellet) o;
+        return coord.equals(pellet.coord);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(coord);
+    }
+
+    public void setTargeted(boolean targeted) {
+        this.targeted = targeted;
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class PacMan {
+    private int tour = 1;
+    private final int pacId;
+    private Floor position;
+    private PacManType typeId;
+    private int speedTurnsLeft;
+    private int abilityCountdown;
+    private Task task;
+
+    public PacMan(int pacId, Cell cell, String typeId, int speedTurnsLeft, int abilityCountdown) {
+        this.pacId = pacId;
+        this.position = (Floor) cell;
+        this.typeId = PacManType.valueOf(typeId);
+        this.speedTurnsLeft = speedTurnsLeft;
+        this.abilityCountdown = abilityCountdown;
+    }
+
+    public void update(String typeId, Cell cell, int speedTurnsLeft, int abilityCountdown) {
+        this.typeId = PacManType.valueOf(typeId);
+        this.position = (Floor) cell;
+        this.speedTurnsLeft = speedTurnsLeft;
+        this.abilityCountdown = abilityCountdown;
+        this.tour++;
+    }
+
+    public boolean canSpeedUpOrSwitch() {
+        return abilityCountdown <= 0;
+    }
+
+    public String doCommand(Action action) {
+        return action.print(pacId);
+    }
+
+    public Pellet getNearestPellets(Set<Pellet> pellets) {
+        double nearestDistance = 99999D;
+        Pellet nearestPellet = null;
+
+        for (Pellet pellet : pellets) {
+            double newDistance = pellet.distanceTo(position);
+            if (newDistance < nearestDistance) {
+                /*if (isOnSpeedMode() && !pellet.isSuper() && newDistance < 2) {
+                    continue;
+                }*/
+                nearestDistance = newDistance;
+                nearestPellet = pellet;
+            }
+        }
+        System.err.println("pac-" + pacId + " nearTo: " + nearestPellet + " Distance: " + nearestDistance);
+        return nearestPellet;
+    }
+
+    public Set<Cell> myVisibleCells(Cell[][] cells) {
+        Set<Cell> visibleCells = new HashSet<>();
+        int baseX = position.getX();
+        int baseY = position.getY();
+
+        for (int x = baseX + 1; x < Grid.width; x++) {
+            if (cells[x][baseY].isWall()) break;
+            visibleCells.add(cells[x][baseY]);
+        }
+        for (int x = baseX - 1; x >= 0; x--) {
+            if (cells[x][baseY].isWall()) break;
+            visibleCells.add(cells[x][baseY]);
+        }
+
+        for (int y = baseY + 1; y < Grid.height; y++) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        for (int y = baseY - 1; y >= 0; y--) {
+            if (cells[baseX][y].isWall()) break;
+            visibleCells.add(cells[baseX][y]);
+        }
+        return visibleCells;
+    }
+
+    private boolean isOnSpeedMode() {
+        return speedTurnsLeft > 0;
+    }
+
+    public void setTask(Task task) {
+        this.task = task;
+    }
+
+    public boolean hasTask() {
+        return this.task != null && !this.task.isFinished();
+    }
+
+    public boolean isAlive() {
+        return !PacManType.DEAD.equals(typeId);
+    }
+
+    public Action getCurrentAction() {
+        return task.keepTargeting();
+    }
+
+    public boolean hasMoveTask() {
+        return task != null && !task.isFinished() && task.isMoveTask();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PacMan pacMan = (PacMan) o;
+        return pacId == pacMan.pacId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(pacId);
+    }
+
+    public void switchTasksWith(PacMan pacMan) {
+        this.task.switchTo(pacMan.task);
+        Task temp = this.task;
+        this.task = pacMan.task;
+        pacMan.task = temp;
+    }
+
+    public double distanceTo(PacMan pacMan) {
+        return this.position.distanceTo(pacMan.position);
     }
 
     public Coord getCoord() {
+        return position.getCoord();
+    }
+
+    public Coord getTarget() {
+        return task.moveTarget();
+    }
+
+    public void setWaitTask() {
+        System.err.println(infoMe() + " set wait task");
+        this.task = new WaitTask(new WaitAction(this));
+    }
+
+    public Floor getDeepestFloor(Set<Floor> floors) {
+        double deepestDistance = 0;
+        Floor deepestFloor = null;
+
+        for (Floor floor : floors) {
+            double newDistance = floor.distanceTo(position);
+            if (newDistance > deepestDistance) {
+                deepestDistance = newDistance;
+                deepestFloor = floor;
+            }
+        }
+        System.err.println("pac-" + pacId + " nearTo: " + deepestFloor + " Distance: " + deepestDistance);
+        return deepestFloor;
+    }
+
+    public Coord nextCoord(Coord coord) {
+        if (isOnSpeedMode()) {
+            if (coord.distanceTo(this.getCoord()) <= 1) {
+                Coord nextCoord = goForwardByStep(coord);
+                return nextCoord != null ? nextCoord : coord;
+            }
+        }
         return coord;
     }
-}
 
-
-
-
-
-class Pacman {
-    private Gamer owner;
-    private int id;
-    private int number;
-    private Coord position;
-    private PacmanType type;
-    private boolean dead = false;
-    private boolean binary;
-    private int speedTurnsLeft;
-    private int abilityCooldown;
-    private int tour;
-    private Action currentAction;
-
-    public Pacman(int id, int number, Gamer owner, Coord position, PacmanType type, int speedTurnsLeft, int abilityCooldown, int tour) {
-        this.owner = owner;
-        this.id = id;
-        this.number = number;
-        this.position = position;
-        this.speedTurnsLeft = speedTurnsLeft;
-        this.abilityCooldown = abilityCooldown;
-        this.setType(type);
-        owner.getPacmen().add(this);
-        this.tour = tour;
-    }
-
-    public void setType(PacmanType type) {
-        this.type = type;
-    }
-
-    public void setDead() {
-        this.dead = true;
-    }
-    public void setDead(int currentTour) {
-        this.dead = isDead(currentTour);
-    }
-
-    public boolean isDead() {
-        return dead;
-    }
-
-    public boolean isDead(int currentTour) {
-        return tour < currentTour;
-    }
-
-    public void turnReset() {
-
-    }
-
-    public void setPosition(Coord position) {
-        this.position = position;
-    }
-
-    public void doAction(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
-        Pellet target = null;
-        if (!pellets.isEmpty()) {
-            if (binary) {
-                target = pellets.peek();
-                binary = false;
-            } else {
-                target = pellets.pop();
-                binary = true;
+    private Coord goForwardByStep(Coord coord) {
+        Direction direction = getMoveDirection(coord);
+        if (direction != null) {
+            switch (direction) {
+                case LEFT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x - 1, coord.y));
+                case RIGHT:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x + 1, coord.y));
+                case UP:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y - 1));
+                case DOWN:
+                    return getNextCoordIfIsAFloor(new Coord(coord.x, coord.y + 1));
             }
         }
-        if (target != null) {
-            this.currentAction = new MoveAction(target.getCoord(), false);
-        } else {
-            Coord destination = grid.randomFloor().getCoordinates();
-            this.currentAction = new MoveAction(destination, false);
+        return null;
+    }
+
+    private Coord getNextCoordIfIsAFloor(Coord coord) {
+        Cell cell = Grid.cellsMap.get(coord);
+        return cell != null && !cell.isWall() ? cell.getCoord() : null;
+    }
+
+    private Direction getMoveDirection(Coord coord) {
+        int x = this.getCoord().x;
+        int y = this.getCoord().y;
+
+        if (x == coord.x) {
+            if (y < coord.y) {
+                return Direction.DOWN;
+            } else {
+                return Direction.UP;
+            }
+        }else if (y == coord.y) {
+            if (x < coord.x) {
+                return Direction.RIGHT;
+            } else {
+                return Direction.LEFT;
+            }
         }
+        return null;
     }
 
-    public int getId() {
-        return id;
+    public String printTaskInfo() {
+        return this.task.printInfo();
     }
 
-    public void setSpeedTurnsLeft(int speedTurnsLeft) {
-        this.speedTurnsLeft = speedTurnsLeft;
+    public boolean isVisibleToMe(PacMan otherPacMan) {
+        return getCoord().isCrossedWith(otherPacMan.getCoord());
     }
 
-    public void setAbilityCooldown(int abilityCooldown) {
-        this.abilityCooldown = abilityCooldown;
+    public String infoMe() {
+        return pacId + "-" + typeId + "-" + getCoord();
     }
 
-    public void update() {
-        this.tour ++;
-        this.currentAction = null;
+    public boolean hasSameType(PacManType pacManType) {
+        return this.typeId.equals(pacManType);
     }
 
-    public boolean hasAction() {
-        return currentAction != null;
-    }
-
-    public double distance(Coord coord) {
-        return this.position.euclideanTo(coord);
-    }
-
-    public void setAction(Action action ) {
-        this.currentAction = action;
-    }
-
-    public String printAction() {
-        return this.currentAction.print(this.id);
-    }
-
-    public boolean available() {
-        return !hasAction() && !isDead();
-    }
-}
-
-
-enum  CellType {
-    WALL, FLOOR;
-}
-
-
-
-enum PacmanType {
-    ROCK(Config.ID_ROCK), PAPER(Config.ID_PAPER), SCISSORS(Config.ID_SCISSORS), NEUTRAL(Config.ID_NEUTRAL);
-
-    int id;
-
-    private PacmanType(int id) {
-        this.id = id;
-    }
-
-    public int getId() {
-        return id;
-    }
-
-    public static PacmanType fromId(int id) {
-        return Stream.of(values())
-                .filter(type -> type.getId() == id)
-                .findFirst()
-                .orElse(null);
-    }
-
-    public static PacmanType fromInput(String input) {
-        switch (input) {
-            case "ROCK":
-                return ROCK;
-            case "PAPER":
-                return PAPER;
-            case "SCISSORS":
-                return SCISSORS;
-            case "NEUTRAL":
-                return NEUTRAL;
-
+    public PacManType attackType(PacMan crossedPac) {
+        switch (crossedPac.typeId) {
+            case ROCK: return PacManType.PAPER;
+            case PAPER: return PacManType.SCISSORS;
+            case SCISSORS: return PacManType.ROCK;
         }
-        throw new RuntimeException(input + " is not a valid pac type");
+        return typeId;
     }
 
-    public static PacmanType fromCharacter(char c) {
-        switch (c) {
-            case 'r':
-            case 'R':
-                return ROCK;
-            case 'p':
-            case 'P':
-                return PAPER;
-            case 's':
-            case 'S':
-                return SCISSORS;
-            case 'n':
-            case 'N':
-                return NEUTRAL;
-
+    public boolean noNeedToKeepWaiting(int counter) {
+        if(isOnSpeedMode()) {
+            return counter <= 0 ? true : false;
         }
-        throw new RuntimeException(c + " is not a valid pac type");
-    }
-}
-
-
-
-
-
-/**
- * Created by Mohamed BELMAHI on 25/09/2016.
- */
-class GraphFindAllPaths<T extends Floor> implements Iterable<T> {
-
-    /* A map from nodes in the graph to sets of outgoing edges.  Each
-     * set of edges is represented by a map from edges to doubles.
-     */
-    public final Map<T, Map<T, Direction>> graph = new HashMap<T, Map<T, Direction>>();
-
-    /**
-     *  Adds a new node to the graph. If the node already exists then its a
-     *  no-op.
-     *
-     * @param node  Adds to a graph. If node is null then this is a no-op.
-     * @return      true if node is added, false otherwise.
-     */
-    public boolean addNode(T node) {
-        if (node == null) {
-            throw new NullPointerException("The input node cannot be null.");
-        }
-        if (graph.containsKey(node)) return false;
-
-        graph.put(node, new HashMap<T, Direction>());
         return true;
     }
-
-    /**
-     * Given the source and destination node it would add an arc from source
-     * to destination node. If an arc already exists then the value would be
-     * updated the new value.
-     *
-     * @param source                    the source node.
-     * @param destination               the destination node.
-     * @param direction                    if length if
-     * @throws NullPointerException     if source or destination is null.
-     * @throws NoSuchElementException   if either source of destination does not exists.
-     */
-    public void addEdge (T source, T destination, Direction direction) {
-        if (source == null || destination == null) {
-            throw new NullPointerException("Source and Destination, both should be non-null.");
-        }
-        if (!graph.containsKey(source) || !graph.containsKey(destination)) {
-            throw new NoSuchElementException("Source and Destination, both should be part of graph");
-        }
-        /* A node would always be added so no point returning true or false */
-        graph.get(source).put(destination, direction);
-    }
-
-    /**
-     * Removes an edge from the graph.
-     *
-     * @param source        If the source node.
-     * @param destination   If the destination node.
-     * @throws NullPointerException     if either source or destination specified is null
-     * @throws NoSuchElementException   if graph does not contain either source or destination
-     */
-    public void removeEdge (T source, T destination) {
-        if (source == null || destination == null) {
-            throw new NullPointerException("Source and Destination, both should be non-null.");
-        }
-        if (!graph.containsKey(source) || !graph.containsKey(destination)) {
-            throw new NoSuchElementException("Source and Destination, both should be part of graph");
-        }
-        graph.get(source).remove(destination);
-    }
-
-    /**
-     * Given a node, returns the edges going outward that node,
-     * as an immutable map.
-     *
-     * @param node The node whose edges should be queried.
-     * @return An immutable view of the edges leaving that node.
-     * @throws NullPointerException   If input node is null.
-     * @throws NoSuchElementException If node is not in graph.
-     */
-    public Map<T, Direction> edgesFrom(T node) {
-        if (node == null) {
-            throw new NullPointerException("The node should not be null.");
-        }
-        Map<T, Direction> edges = graph.get(node);
-        if (edges == null) {
-            throw new NoSuchElementException("Source node does not exist.");
-        }
-        return Collections.unmodifiableMap(edges);
-    }
-
-    /**
-     * Returns the iterator that travels the nodes of a graph.
-     *
-     * @return an iterator that travels the nodes of a graph.
-     */
-    public Iterator<T> iterator() {
-        return graph.keySet().iterator();
-    }
-}
-
-
-
-
-/**
- * Mohamed BELMAHI created on 09/05/2020
- */
-class GraphMaker {
-
-    public static GraphFindAllPaths<Floor> constructGraph(Set<Floor> places, Cell[][] cells) {
-        GraphFindAllPaths<Floor> graphFindAllPaths = new GraphFindAllPaths<Floor>();
-
-        for (Floor currentCell : places) {
-            graphFindAllPaths.addNode(currentCell);
-
-            Cell right = currentCell.rightCell(cells);
-            Cell left = currentCell.leftCell(cells);
-            Cell up = currentCell.upCell(cells);
-            Cell down = currentCell.downCell(cells);
-
-            addEdgeToCurrentCell(graphFindAllPaths, currentCell, right, Direction.RIGHT);
-            addEdgeToCurrentCell(graphFindAllPaths, currentCell, left, Direction.LEFT);
-            addEdgeToCurrentCell(graphFindAllPaths, currentCell, up, Direction.UP);
-            addEdgeToCurrentCell(graphFindAllPaths, currentCell, down, Direction.DOWN);
-        }
-
-        return graphFindAllPaths;
-    }
-
-    public static void addEdgeToCurrentCell(final GraphFindAllPaths<Floor> graphFindAllPaths, Floor currentCell, Cell destination, Direction direction) {
-        if (destination != null) {
-            graphFindAllPaths.addNode((Floor) destination);
-            graphFindAllPaths.addEdge(currentCell, (Floor) destination, direction);
-        }
-    }
 }
 
 
 
 
 
-/**
- * Created by Mohamed BELMAHI on 27/09/2016.
+
+/*
+ * Find the best path from a Coord to another Coord
+ * currently : using Astar algorithm
  */
-class FindOptimalPath<T extends Floor> {
+class PathFinder {
+  public static class PathFinderResult {
+    public static final PathFinderResult NO_PATH = new PathFinderResult();
+    public List<Coord> path = new ArrayList<>();
+    public int weightedLength = -1;
+    public boolean isNearest = false;
 
-    private final GraphFindAllPaths<T> graph;
-    public static final int PLACE_TO_ESCAPE = 10;
-
-    public FindOptimalPath(final GraphFindAllPaths<T> graph) {
-        if (graph == null) {
-            throw new NullPointerException("The input graph cannot be null.");
-        }
-        this.graph = graph;
+    public boolean hasNextCoord() {
+      return path.size() > 1;
     }
 
-    private void validate(final T source, final T destination) {
-
-        if (source == null) {
-            throw new NullPointerException("The source: " + source + " cannot be  null.");
-        }
-        if (destination == null) {
-            throw new NullPointerException("The destination: " + destination + " cannot be  null.");
-        }
-        if (source.equals(destination)) {
-            //throw new IllegalArgumentException("The source and destination: " + source + " cannot be the same.");
-            throw new IllegalArgumentException();
-        }
+    public Coord getNextCoord() {
+      return path.get(1);
     }
 
-    public List<T> getOptimalPath(final T source, final T destination) {
-        try {
-            validate(source, destination);
-        } catch (IllegalArgumentException e) {
-            return new ArrayList<T>();
+    public boolean hasNoPath() {
+      return weightedLength == -1;
+    }
+  }
+
+  Grid grid = null;
+  Coord from = null;
+  Coord to = null;
+  private Function<Coord, Integer> weightFunction = (Coord coord) -> (1);
+
+  public PathFinder setGrid(Grid grid) {
+      this.grid = grid;
+      return this;
+  }
+
+  public PathFinder from(Coord Coord) {
+    from = Coord;
+    return this;
+  }
+
+  public PathFinder to(Coord Coord) {
+    to = Coord;
+    return this;
+  }
+
+  public PathFinder withWeightFunction(Function<Coord, Integer> weightFunction) {
+    this.weightFunction = weightFunction;
+    return this;
+  }
+
+  public PathFinderResult findPath() {
+    if (from == null || to == null) {
+      return new PathFinderResult();
+    }
+
+    AStar a = new AStar(grid, from, to, weightFunction);
+    List<PathItem> pathItems = a.find();
+    PathFinderResult pfr = new PathFinderResult();
+
+    if (pathItems.isEmpty()) {
+        pfr.isNearest = true;
+        pathItems = new AStar(grid, from, a.getNearest(), weightFunction).find();
+    }
+
+    pfr.path = pathItems.stream()
+        .map(item -> item.coord)
+        .collect(Collectors.toList());
+    pfr.weightedLength = pathItems.get(pathItems.size() - 1).cumulativeLength;
+    return pfr;
+  }
+}
+
+
+enum CrossedPathsSolution {
+    SWITCH, WAIT, NO_NEED, CHANGE;
+}
+
+
+
+
+/**
+ * PATH : A*
+ *
+ */
+class AStar {
+    Map<Coord, PathItem> closedList = new HashMap<>();
+    PriorityQueue<PathItem> openList = new PriorityQueue<PathItem>(Comparator.comparingInt(PathItem::getTotalPrevisionalLength));
+    List<PathItem> path = new ArrayList<PathItem>();
+
+    Grid grid;
+    Coord from;
+    Coord target;
+    Coord nearest;
+
+    int dirOffset;
+    private Function<Coord, Integer> weightFunction;
+
+    public AStar(Grid grid, Coord from, Coord target, Function<Coord, Integer> weightFunction) {
+        this.grid = grid;
+        this.from = from;
+        this.target = target;
+        this.weightFunction = weightFunction;
+        this.nearest = from;
+    }
+
+    public List<PathItem> find() {
+        PathItem item = getPathItemLinkedList();
+        path.clear();
+        if (item != null) {
+            calculatePath(item);
         }
-
-        List<T> alreadyList = new ArrayList<>();
-
-        final List<T> path = recursive(source, destination, alreadyList);
         return path;
     }
 
-    private List<T> recursive(final T current, final T destination, List<T> alreadyList) {
-        final List<T> path = new ArrayList<>();
-
-        alreadyList.add(current);
-        if (current == destination) {
-            path.add(current);
-            return path;
+    void calculatePath(PathItem item) {
+        PathItem i = item;
+        while (i != null) {
+            path.add(0, i);
+            i = i.precedent;
         }
+    }
 
-        //System.err.println("current : " + current.coordinates.toString());
-        final Map<T, Direction> edges  = graph.edgesFrom(current);
+    PathItem getPathItemLinkedList() {
+        PathItem root = new PathItem();
+        root.coord = this.from;
+        openList.add(root);
 
-        final LinkedList<Direction> directions = current.getDirections(destination);
+        while (openList.size() > 0) {
+            PathItem visiting = openList.remove(); // imagine it's the best
+            Coord visitingCoord = visiting.coord;
 
+            if (visitingCoord.equals(target)) {
+                return visiting;
+            }
+            if (closedList.containsKey(visitingCoord)) {
+                continue;
+            }
+            closedList.put(visitingCoord, visiting);
 
-        for (final Direction direction : directions) {
-            for (final Map.Entry<T, Direction> entry : edges.entrySet()) {
-                T entryKey = entry.getKey();
-                if (direction.equals(entry.getValue()) && !alreadyList.contains(entryKey)) {
-                    if (entryKey != destination) {
-                        path.add(entryKey);
-                    }
-                    final List<T> recursivePath = recursive(entryKey, destination, alreadyList);
-                    if (!recursivePath.isEmpty() && recursivePath.get(recursivePath.size() - 1) == destination) {
-                        path.addAll(recursivePath);
-                        return path;
-                    }
+            List<Coord> neighbors = grid.getNeighbours(visitingCoord);
+            for (Coord neighbor : neighbors) {
+                if (!grid.get(neighbor).isWall()) {
+                    addToOpenList(visiting, visitingCoord, neighbor);
                 }
             }
-        }
 
-        if (!path.isEmpty() && path.get(path.size() - 1) != destination) {
-            return new ArrayList<>();
-        }
-
-        return path;
-    }
-
-
-    public Map<T, Integer> getPlacesWithDistance(T currentPlace){
-        Map<T, Integer> places = new HashMap<T, Integer>();
-
-        final Map<T, Direction> edges  = graph.edgesFrom(currentPlace);
-
-        for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-            recursivePlacesWithDistance(places, currentPlace, entry.getKey());
-        }
-
-        return places;
-    }
-
-    private void recursivePlacesWithDistance(Map<T, Integer> places, T currentPlace, T destination) {
-        if (places.size() > 10) {
-            places.put(destination, getOptimalPath(currentPlace, destination).size());
-
-            final Map<T, Direction> edges  = graph.edgesFrom(destination);
-
-            for (Map.Entry<T, Direction> entry : edges.entrySet()) {
-                recursivePlacesWithDistance(places, currentPlace, entry.getKey());
+            if (grid.calculateDistance(visitingCoord, target) < grid.calculateDistance(nearest, target)) {
+                this.nearest = visitingCoord;
             }
         }
+        return null; // not found !
     }
 
-    /*public static void main(final String[] args) {
-        final GraphFindAllPaths<Floor> graph = new GraphFindAllPaths<>();
-
-        final Floor here = new Floor(new Coord(0, 0));
-        final Floor next1 = new Floor(new Coord(0, 1));
-        final Floor next2 = new Floor(new Coord(0, 2));
-        final Floor next3 = new Floor(new Coord(0, 3));
-        final Floor next4 = new Floor(new Coord(0, 4));
-        final Floor next41 = new Floor(new Coord(1, 4));
-        final Floor next5 = new Floor(new Coord(0, 5));
-        final Floor next6 = new Floor(new Coord(0, 6));
-        final Floor next62 = new Floor(new Coord(2, 6));
-
-        graph.addNode(here);
-
-        graph.addNode(next1);
-        graph.addNode(next2);
-        graph.addNode(next3);
-        graph.addNode(next4);
-        graph.addNode(next5);
-        graph.addNode(next6);
-        graph.addNode(next62);
-        graph.addNode(next41);
-
-        graph.addEdge(here, next1, Direction.DOWN);
-        graph.addEdge(next1, next2, Direction.DOWN);
-        graph.addEdge(next2, next3, Direction.DOWN);
-        graph.addEdge(next3, next4, Direction.DOWN);
-        graph.addEdge(next4, next5, Direction.DOWN);
-        graph.addEdge(next5, next6, Direction.DOWN);
-        graph.addEdge(next4, next41, Direction.RIGHT);
-
-        //
-        final Floor next51 = new Floor(new Coord(1, 5));
-        graph.addNode(next51);
-        graph.addEdge(next5, next51, Direction.RIGHT);
-
-        final FindOptimalPath<Floor> findOptimalPath = new FindOptimalPath<>(graph);
-
-        final List<Floor> optimalPath = findOptimalPath.getOptimalPath(next4, next41);
-
-        for (final Floor floor : optimalPath) {
-            System.out.println(floor.getCoordinates().toString());
+    void addToOpenList(PathItem visiting, Coord fromCoord, Coord toCoord) {
+        if (closedList.containsKey(toCoord)) {
+            return;
         }
+        PathItem pi = new PathItem();
+        pi.coord = toCoord;
+        pi.cumulativeLength = visiting.cumulativeLength + weightFunction.apply(toCoord);
+        int manh = grid.calculateDistance(fromCoord, toCoord);
+        pi.totalPrevisionalLength = pi.cumulativeLength + manh;
+        pi.precedent = visiting;
+        openList.add(pi);
+    }
 
-    }*/
-
-
+    public Coord getNearest() {
+        return nearest;
+    }
 
 }
+/** End of PATH */
+
+
+
+
+class PathItem {
+    public int cumulativeLength = 0;
+    int totalPrevisionalLength = 0;
+    PathItem precedent = null;
+    Coord coord;
+
+    public int getTotalPrevisionalLength() {
+        return totalPrevisionalLength;
+    }
+}
+
+
+enum PacManType {
+    ROCK, PAPER, SCISSORS, DEAD
+}
+
+
 
 
 /**
- * Created by Mohamed BELMAHI on 26/09/2016.
+ * Mohamed BELMAHI created on 14/05/2020
  */
-enum Direction {
-    RIGHT, LEFT, UP, DOWN
-}
-
-
-
-
 class Grid {
-    public static int width, height;
-    Map<Coord, Cell> cellsMap = new HashMap<>();
-    Cell[][] cells;
-    Set<Floor> places;
+    public static int width;
+    public static int height;
+    public static HashMap<Coord, Cell> cellsMap;
+    private Cell[][] cells;
 
-    public Grid(Cell[][] cells, Set<Floor> places, int width, int height) {
+    public Grid(int width, int height, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {
         this.width = width;
         this.height = height;
+        this.cellsMap = cellsMap;
         this.cells = cells;
-        this.places = places;
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                cellsMap.put(new Coord(x, y), cells[x][y]);
-            }
+    }
+
+    public List<Coord> getNeighbours(Coord pos) {
+        return Arrays
+                .stream(Config.ADJACENCY)
+                .map(delta -> getCoordNeighbour(pos, delta))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<Coord> getCoordNeighbour(Coord pos, Coord delta) {
+        Coord n = pos.add(delta);
+        if (Config.MAP_WRAPS) {
+            n = new Coord((n.x + width) % width, n.y);
         }
+
+        if (get(n) != Cell.NO_CELL) {
+            return Optional.of(n);
+        }
+        return Optional.empty();
+    }
+
+    public Cell get(Coord coord) {
+        return get(coord.x, coord.y);
+    }
+
+    public Cell get(int x, int y) {
+        return cellsMap.getOrDefault(new Coord(x, y), Cell.NO_CELL);
+    }
+
+    public int calculateDistance(Coord a, Coord b) {
+        int dv = Math.abs(a.y - b.y);
+        int dh = Math.min(
+                Math.abs(a.x - b.x),
+                Math.min(a.x + width - b.x, b.x + width - a.x)
+        );
+        return dv + dh;
     }
 
     public void printGrid() {
@@ -531,27 +588,93 @@ class Grid {
             System.err.println("|");
         }
     }
-
-    public Floor randomFloor() {
-        int index = (int) (Math.random() * (this.places.size()));
-        Iterator<Floor> iterator = this.places.iterator();
-        for (int i = 0; i < index; i++) {
-            iterator.next();
-        }
-        return iterator.next();
-    }
 }
 
 
 
 
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class ActionBuilder {
+    public static MoveAction buildMoveAction(Set<Pellet> pellets, PacMan pacMan) {
+        if (pellets.isEmpty()) {
+            return null;
+        }
+
+        Pellet pellet = pacMan.getNearestPellets(pellets);
+
+        return pellet.targeted(pacMan);
+    }
+
+    public static MoveAction buildFindPelletAction(Set<Floor> floors, PacMan pacMan) {
+        if (floors.isEmpty()) {
+            return null;
+        }
+
+        Floor floor = pacMan.getDeepestFloor(floors);
+
+        return floor.targeted(pacMan);
+    }
+
+    public static Action buildAttackAction(PacMan pacMan, PacMan crossedPac) {
+        if (!crossedPac.canSpeedUpOrSwitch()) {
+            PacManType pacManType = pacMan.attackType(crossedPac);
+
+            if (pacMan.hasSameType(pacManType)) {
+                return null;
+            } else {
+                 new SwitchAction(pacMan);
+            }
+        } else {
+            return null;
+        }
+        return null;
+    }
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class CellFactory {
+    public static Cell createCell(char inputType, Coord coord) {
+        switch (inputType) {
+            case ' ': return new Floor(coord);
+            case '#': return new Wall(coord);
+            default: throw new IllegalArgumentException("No Cell With this type ");
+        }
+    }
+}
+
+
+enum CellType {
+    WALL, FLOOR;
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
 class Coord {
-    protected final int x;
-    protected final int y;
+
+    public final int x;
+    public final int y;
 
     public Coord(int x, int y) {
         this.x = x;
         this.y = y;
+    }
+
+    @Override
+    public String toString() {
+        return x + " " + y;
+    }
+
+    public double distanceTo(Coord coord) {
+        return euclideanTo(coord);
     }
 
     public double euclideanTo(int x, int y) {
@@ -562,32 +685,8 @@ class Coord {
         return Math.pow(x - this.x, 2) + Math.pow(y - this.y, 2);
     }
 
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + x;
-        result = prime * result + y;
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null) return false;
-        Coord other = (Coord) obj;
-        if (x != other.x) return false;
-        if (y != other.y) return false;
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        return "(" + x + ", " + y + ")";
-    }
-
-    public String print() {
-        return x + " " + y;
+    public double euclideanTo(Coord d) {
+        return euclideanTo(d.x, d.y);
     }
 
     public int getX() {
@@ -598,379 +697,745 @@ class Coord {
         return y;
     }
 
-    public int manhattanTo(Coord other) {
-        return manhattanTo(other.x, other.y);
-    }
-
-    public int chebyshevTo(int x, int y) {
-        return Math.max(Math.abs(x - this.x), Math.abs(y - this.y));
-    }
-
-    public int manhattanTo(int x, int y) {
-        return Math.abs(x - this.x) + Math.abs(y - this.y);
-    }
-
     public Coord add(Coord d) {
         return new Coord(x + d.x, y + d.y);
     }
 
-    public Coord subtract(Coord d) {
-        return new Coord(x - d.x, y - d.y);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Coord coord = (Coord) o;
+        return x == coord.x &&
+                y == coord.y;
     }
 
-    public double euclideanTo(Coord d) {
-        return euclideanTo(d.x, d.y);
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
     }
 
-    public Coord getUnitVector() {
-        int newX = this.x == 0 ? 0 : this.x / Math.abs(this.x);
-        int newY = this.y == 0 ? 0 : this.y / Math.abs(this.y);
-        return new Coord(newX, newY);
-    }
-
-    public LinkedList<Direction> getSortedDirection(Coord destination) {
-
-        LinkedList<Direction> directions = new LinkedList<>();
-
-        if (this.y == destination.y) {
-            if (this.x < destination.x) {
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.DOWN);
-                directions.add(Direction.UP);
-                directions.add(Direction.LEFT);
-            }else{
-                directions.add(Direction.LEFT);
-                directions.add(Direction.DOWN);
-                directions.add(Direction.UP);
-                directions.add(Direction.RIGHT);
-            }
-        } else if (this.x == destination.x) {
-            if (this.y < destination.y) {
-                directions.add(Direction.DOWN);
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.LEFT);
-                directions.add(Direction.UP);
-            }else{
-                directions.add(Direction.UP);
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.LEFT);
-                directions.add(Direction.DOWN);
-            }
-        } else if (this.x < destination.x && this.y < destination.y) {
-            int diffX = destination.x - this.x;
-            int diffY = destination.y - this.y;
-
-            if (diffX < diffY) {
-                directions.add(Direction.DOWN);
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.LEFT);
-                directions.add(Direction.UP);
-            }else{
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.DOWN);
-                directions.add(Direction.LEFT);
-                directions.add(Direction.UP);
-            }
-        }else if (this.x > destination.x && this.y > destination.y) {
-            int diffX = destination.x - this.x;
-            int diffY = destination.y - this.y;
-
-            if (diffX < diffY) {
-                directions.add(Direction.LEFT);
-                directions.add(Direction.UP);
-                directions.add(Direction.DOWN);
-                directions.add(Direction.RIGHT);
-            }else{
-                directions.add(Direction.UP);
-                directions.add(Direction.RIGHT);
-                directions.add(Direction.DOWN);
-                directions.add(Direction.RIGHT);
-            }
-        }else if (this.x < destination.x && this.y > destination.y){
-            directions.add(Direction.LEFT);
-            directions.add(Direction.UP);
-            directions.add(Direction.DOWN);
-            directions.add(Direction.RIGHT);
-        }if (this.x > destination.x && this.y < destination.y){
-            directions.add(Direction.LEFT);
-            directions.add(Direction.DOWN);
-            directions.add(Direction.UP);
-            directions.add(Direction.RIGHT);
-        }
-
-
-        return directions;
+    public boolean isCrossedWith(Coord coord) {
+        return coord.x == this.x || coord.y == this.y;
     }
 }
 
 
-
-
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
 class Wall extends Cell {
     public Wall(Coord coord) {
         super(coord);
     }
 
     @Override
-    public String toString() {
-        return "#";
-    }
-
-    @Override
     public boolean isWall() {
         return true;
     }
-}
 
-
-
-class CellPrototype {
-    public static Cell getCell(char type, int x, int y) {
-        Coord coord = new Coord(x, y);
-        switch (type) {
-            case ' ' : return new Floor(coord);
-            case '#': return new Wall(coord);
-
-            default: throw new IllegalArgumentException("No Cell With Type of : " + type);
-        }
+    @Override
+    public String toString() {
+        return "#";
     }
 }
 
 
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+enum  FloorStatus {
+    HIDDEN, HAS_SUPER_PELLET, HAS_SIMPLE_PELLET, EMPTY
+}
 
 
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
 class Floor extends Cell {
-    public Floor(Coord coord) {
+
+    private Pellet pallet;
+    private FloorStatus floorStatus;
+    private boolean targeted;
+    private PacMan targetedForDiscovery;
+
+    Floor(Coord coord) {
         super(coord);
+        this.floorStatus = FloorStatus.HIDDEN;
+    }
+
+    public void setPallet(Pellet pallet) {
+        this.pallet = pallet;
+        this.floorStatus = pallet.isSuper() ? FloorStatus.HAS_SUPER_PELLET : FloorStatus.HAS_SIMPLE_PELLET;
+    }
+
+    public double distanceTo(Floor floor) {
+        return coord.distanceTo(floor.coord);
+    }
+
+    public void noPellet() {
+        if (pallet != null) {
+            pallet.setStillHere(false);
+        }
+        this.floorStatus = FloorStatus.EMPTY;
     }
 
     @Override
     public String toString() {
+        switch (this.floorStatus) {
+            case EMPTY: return " ";
+            case HAS_SIMPLE_PELLET: return "o";
+            case HAS_SUPER_PELLET: return "O";
+            case HIDDEN: return "?";
+        }
         return " ";
     }
 
-    public <T extends Floor> LinkedList<Direction> getDirections(final T destination) {
-        return this.getCoordinates().getSortedDirection(destination.getCoordinates());
+    public boolean isHidden() {
+        return FloorStatus.HIDDEN.equals(floorStatus);
+    }
+
+    public MoveAction targeted(PacMan pacMan) {
+        this.targeted = true;
+
+        MoveAction moveAction = new MoveAction(pacMan, coord);
+        pacMan.setTask(new FindPelletTask(moveAction, this));
+        this.targetedForDiscovery = pacMan;
+        markStreetAsTargeted(pacMan);
+        return moveAction;
+    }
+
+    private void markStreetAsTargeted(PacMan pacMan) {
+        int x = this.coord.x;
+        int y = this.coord.y;
+
+        for (int i = x - 1; i >= 0; i--) {
+            Cell cell = Grid.cellsMap.get(new Coord(i, y));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = x + 1; i < Grid.width; i++) {
+            Cell cell = Grid.cellsMap.get(new Coord(i, y));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = y - 1; i >= 0; i--) {
+            Cell cell = Grid.cellsMap.get(new Coord(x, i));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+
+        for (int i = y + 1; i < Grid.height; i++) {
+            Cell cell = Grid.cellsMap.get(new Coord(x, i));
+            if (cell == null || cell.isWall()) {
+                break;
+            }
+            ((Floor) cell).setTargetedForDiscovery(pacMan);
+        }
+    }
+
+    public boolean isTargeted() {
+        return targeted;
+    }
+
+    public void setTargeted(boolean targeted) {
+        this.targeted = targeted;
+    }
+
+    public Set<Floor> getSortedEdgesBasedOnDistanceFromTarget(Floor target, Set<Floor> edges) {
+        Set<Floor> sortedEdgesBasedOnDistanceFromTarget = new TreeSet<Floor>((floor1, floor2) -> {
+
+            double floor1DistanceToTarget = floor1.distanceTo(target);
+            double floor2DistanceToTarget = floor2.distanceTo(target);
+            return floor1DistanceToTarget < floor2DistanceToTarget ? -1 : 1;
+        });
+
+        sortedEdgesBasedOnDistanceFromTarget.addAll(edges);
+
+        return sortedEdgesBasedOnDistanceFromTarget;
+    }
+
+    public boolean isEmpty() {
+        return FloorStatus.EMPTY.equals(floorStatus);
+    }
+
+    public boolean isNotTargetedForDiscovery() {
+        return targetedForDiscovery == null || !targetedForDiscovery.isAlive();
+    }
+
+    public void setTargetedForDiscovery(PacMan targetedForDiscovery) {
+        this.targetedForDiscovery = targetedForDiscovery;
     }
 }
 
 
 
-class Cell {
-    private Coord coordinates;
 
-    public Cell(Coord coordinates) {
-        this.coordinates = coordinates;
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class Cell {
+    public static final Cell NO_CELL = new Floor(new Coord(1000, 1000)) {
+        public boolean isValid() {
+            return false;
+        }
+
+        public void copy(Cell other) {
+            throw new RuntimeException("Invalid cell");
+        }
+
+        public void setType(CellType type) {
+            throw new RuntimeException("Invalid cell");
+        }
+    };
+    protected Coord coord;
+
+    public Cell(Coord coord) {
+        this.coord = coord;
+    }
+
+    public int getX() {
+        return coord.getX();
+    }
+
+    public int getY() {
+        return coord.getY();
+    }
+
+    public boolean isWall() {
+        return false;
+    }
+
+    public Coord getCoord() {
+        return coord;
     }
 
     public Cell rightCell(Cell[][] cells) {
-        if (coordinates.getX() + 1 < Grid.width) {
-            Cell cell = cells[coordinates.getY()][coordinates.getX() + 1];
+        if (coord.getX() + 1 < Grid.width) {
+            Cell cell = cells[coord.getX() + 1][coord.getY()];
             if (!cell.isWall()) return cell;
         }
         return null;
     }
 
     public Cell leftCell(Cell[][] cells) {
-        if (coordinates.getX() - 1 >= 0) {
-            Cell cell = cells[coordinates.getY()][coordinates.getX() - 1];
+        if (coord.getX() - 1 >= 0) {
+            Cell cell = cells[coord.getX() - 1][coord.getY()];
             if (!cell.isWall()) return cell;
         }
         return null;
     }
 
     public Cell upCell(Cell[][] cells) {
-        if (coordinates.getY() - 1 >= 0) {
-            Cell cell = cells[coordinates.getY() - 1][coordinates.getX()];
+        if (coord.getY() - 1 >= 0) {
+            Cell cell = cells[coord.getX()][coord.getY() - 1];
             if (!cell.isWall()) return cell;
         }
         return null;
     }
 
     public Cell downCell(Cell[][] cells) {
-        if (coordinates.getY() + 1 < Grid.height) {
-            Cell cell = cells[coordinates.getY() + 1][coordinates.getX()];
+        if (coord.getY() + 1 < Grid.height) {
+            Cell cell = cells[coord.getX()][coord.getY() + 1];
             if (!cell.isWall()) return cell;
         }
         return null;
     }
+}
 
-    public boolean isWall() {
-       return false;
-    }
 
-    public Coord getCoordinates() {
-        return coordinates;
-    }
+enum Direction {
+    LEFT, RIGHT, UP, DOWN
 }
 
 
 
 
+/**
+ * Mohamed BELMAHI created on 16/05/2020
+ */
+class SwitchAction extends Action {
 
-class SwitchAction implements Action {
-
-    private PacmanType type;
-
-    public PacmanType getNewType() {
-        return type;
-    }
-
-    public SwitchAction(PacmanType type) {
-        this.type = type;
+    public SwitchAction(PacMan pacMan) {
+        super(pacMan);
     }
 
     @Override
-    public PacmanType getType() {
-        return type;
-    }
-
-    @Override
-    public ActionType getActionType() {
+    public ActionType type() {
         return ActionType.SWITCH;
     }
 
     @Override
-    public String print(int id) {
-        return null;
+    protected String msg() {
+        return "SW-"+type().toString();
+    }
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class WaitAction extends Action {
+    int counter = 2;
+    public WaitAction(PacMan pacMan) {
+        super(pacMan);
+    }
+
+    @Override
+    public ActionType type() {
+        return ActionType.WAIT;
+    }
+
+    @Override
+    public String print(int pacId) {
+        counter--;
+        return super.print(pacId);
+    }
+
+    @Override
+    protected String msg() {
+        return "W";
+    }
+
+    public boolean isFinished() {
+        return pacMan.noNeedToKeepWaiting(counter);
     }
 }
 
 
 
 
-class MoveAction implements Action {
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class MoveAction extends Action {
 
-    private Coord destination;
-
-    public Coord getTarget() {
-        return destination;
-    }
-
-    public MoveAction(Coord destination, boolean activateSpeed) {
-        this.destination = destination;
-    }
-
-    @Override
-    public PacmanType getType() {
-        return null;
+    private Coord coord;
+    public MoveAction(PacMan pacMan, Coord coord) {
+        super(pacMan);
+        this.coord = coord;
     }
 
     @Override
-    public ActionType getActionType() {
+    public ActionType type() {
         return ActionType.MOVE;
     }
 
-    public String print(int pacmanId) {
-        return getActionType().toString() + " " + pacmanId + " " + destination.print();
+    @Override
+    public String print(int pacId) {
+        coord = pacMan.nextCoord(coord);
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), coord.toString(), msg()));
     }
-}
-
-
-enum ActionType {
-  WAIT, MOVE, MSG, SPEED, SWITCH
-}
-
-
-@SuppressWarnings("serial")
-class ActionException extends Exception {
-
-    public ActionException(String message) {
-        super(message);
-    }
-
-}
-
-
-
-class SpeedAction implements Action {
-  @Override
-  public ActionType getActionType() {
-      return ActionType.SPEED;
-  }
 
     @Override
-    public String print(int id) {
+    protected String msg() {
+        return "M-" + coord.getX() + ":" + coord.getY();
+    }
+
+    public Coord targetCoord() {
+        return coord;
+    }
+
+    public boolean isReached() {
+        return this.coord.distanceTo(pacMan.getCoord()) == 0;
+    }
+}
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+enum ActionType {
+    WAIT, MOVE, MSG, SPEED, SWITCH
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+class SpeedAction extends Action {
+    public SpeedAction(PacMan pacMan) {
+        super(pacMan);
+    }
+
+    @Override
+    public ActionType type() {
+        return ActionType.SPEED;
+    }
+
+    @Override
+    protected String msg() {
+        return "S";
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+abstract class Action {
+    PacMan pacMan;
+
+    public Action(PacMan pacMan) {
+        this.pacMan = pacMan;
+    }
+
+    public abstract ActionType type();
+
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
+    }
+    protected abstract String msg();
+
+    public void changeItPacWith(Action action) {
+        PacMan temp = this.pacMan;
+        this.pacMan = action.pacMan;
+        action.pacMan = temp;
+    }
+
+    public String printCommand() {
+        return pacMan.doCommand(this);
+    }
+}
+
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class Node<T extends Floor> {
+    private T node;
+    private Set<T> children;
+
+    Node(T node, Set<T> children) {
+       this.node = node;
+        this.children = children;
+    }
+
+    public Set<T> getChildren() {
+        return children;
+    }
+
+    public T getNode() {
+        return node;
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class Graph {
+    Map<Coord, Node> nodes = new HashMap<>();
+
+    public Node getNodeByCoord(Coord coord) {
+        return nodes.get(coord);
+    }
+
+    public void addNode(Floor currentCell, Set<Floor> edges) {
+        nodes.put(currentCell.getCoord(), new Node(currentCell, edges));
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class GraphBuilder {
+    public static Graph CreateGraph(Set<Floor> places, Cell[][] cells) {
+        Graph graph = new Graph();
+
+        for (Floor currentCell : places) {
+
+            Cell right = currentCell.rightCell(cells);
+            Cell left = currentCell.leftCell(cells);
+            Cell up = currentCell.upCell(cells);
+            Cell down = currentCell.downCell(cells);
+
+            Set<Floor> edges = new HashSet<>();
+            addToEdges(right, edges);
+            addToEdges(left, edges);
+            addToEdges(up, edges);
+            addToEdges(down, edges);
+
+            graph.addNode(currentCell, edges);
+        }
+
+        return graph;
+    }
+
+    private static void addToEdges(Cell right, Set<Floor> edges) {
+        if (right != null) {
+            edges.add((Floor) right);
+        }
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class BreadthFirstSearch {
+    private Graph graph;
+
+    public BreadthFirstSearch(Graph graph){
+        this.graph = graph;
+    }
+
+    public boolean compute(Coord from, Coord to){
+
+        Node startNode = graph.getNodeByCoord(from);
+        Node goalNode = graph.getNodeByCoord(to);
+
+        if(startNode.equals(goalNode)){
+            System.out.println("Goal Node Found!");
+            System.out.println(startNode);
+        }
+
+        Queue<Floor> queue = new LinkedList<>();
+        ArrayList<Floor> explored = new ArrayList<>();
+        queue.add(startNode.getNode());
+        explored.add(startNode.getNode());
+
+        while(!queue.isEmpty()){
+            Floor current = queue.remove();
+            if(current.equals(goalNode.getNode())) {
+                System.out.println(explored);
+                return true;
+            }
+            else{
+                Node currentNode = graph.getNodeByCoord(current.getCoord());
+                if(currentNode.getChildren().isEmpty())
+                    return false;
+                else
+                    queue.addAll(current.getSortedEdgesBasedOnDistanceFromTarget(goalNode.getNode(), currentNode.getChildren()));
+            }
+            explored.add(current);
+        }
+
+        return false;
+
+    }
+
+    public List<Floor> getOptimalPath(final Floor source, final Floor destination) {
+
+        List<Floor> alreadyList = new ArrayList<>();
+
+        final List<Floor> path = recursive(source, destination, alreadyList);
+        return path;
+    }
+
+    private List<Floor> recursive(Floor current, Floor destination, List<Floor> alreadyList) {
+        final List<Floor> path = new ArrayList<>();
+
+        alreadyList.add(current);
+        if (current == destination) {
+            path.add(current);
+            return path;
+        }
+
+        //System.err.println("current : " + current.getCoordinates().toString());
+        Node currentNode = graph.getNodeByCoord(current.getCoord());
+
+        Set<Floor> sortedEdges = current.getSortedEdgesBasedOnDistanceFromTarget(destination, currentNode.getChildren());
+
+        for (final Floor edge : sortedEdges) {
+            if (!alreadyList.contains(edge)) {
+                if (edge != destination) {
+                    path.add(edge);
+                }
+                final List<Floor> recursivePath = recursive(edge, destination, alreadyList);
+                if (!recursivePath.isEmpty() && recursivePath.get(recursivePath.size() - 1) == destination) {
+                    path.addAll(recursivePath);
+                    return path;
+                } else {
+                    path.remove(path.size() - 1);
+                }
+            }
+        }
+
+        if (!path.isEmpty() && path.get(path.size() - 1) != destination) {
+            return new ArrayList<>();
+        }
+
+        return path;
+    }
+}
+
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class EatTask extends Task {
+    private Pellet pellet;
+
+    public EatTask(Action action, Pellet pellet) {
+        super(action);
+        this.pellet = pellet;
+    }
+
+    @Override
+    public boolean isFinished() {
+        return !this.pellet.isStillHere();
+    }
+
+    @Override
+    public Action keepTargeting() {
+        pellet.setTargeted(true);
+        return action;
+    }
+
+    @Override
+    public boolean isMoveTask() {
+        return true;
+    }
+
+    @Override
+    public Coord moveTarget() {
+        return isMoveTask() ? ((MoveAction) action).targetCoord() : null;
+    }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " to pellet " + pellet.toString();
+    }
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class WaitTask extends Task {
+    public WaitTask(Action action) {
+        super(action);
+    }
+
+    @Override
+    public boolean isFinished() {
+        return ((WaitAction) action).isFinished();
+    }
+
+    @Override
+    public Action keepTargeting() {
+        return action;
+    }
+
+    @Override
+    public boolean isMoveTask() {
+        return false;
+    }
+
+    @Override
+    public Coord moveTarget() {
         return null;
     }
 
     @Override
-  public PacmanType getType() {
-      return null;
-  }
-}
-
-
-
-interface Action {
-
-    Action NO_ACTION = new Action() {
-
-        @Override
-        public PacmanType getType() {
-            return null;
-        }
-
-        @Override
-        public ActionType getActionType() {
-            return ActionType.WAIT;
-        }
-
-        @Override
-        public String print(int id) {
-            return ActionType.WAIT.toString() + " " + id;
-        }
-    };
-
-    public PacmanType getType();
-    public ActionType getActionType();
-
-    String print(int id);
-}
-
-
-
-
-class Game {
-    Grid grid;
-
-    private Gamer me;
-    private Gamer opponent;
-    private LinkedList<Pellet> pellets;
-    private Set<Pellet> superPellets;
-
-    public Game(Grid grid){
-        this.grid = grid;
-    }
-
-
-    public Grid getGrid() {
-        return grid;
-    }
-
-    public void setMe(Gamer me) {
-        this.me = me;
-    }
-
-    public void setOpponent(Gamer opponent) {
-        this.opponent = opponent;
-    }
-
-    public String play() {
-        return me.play(pellets, superPellets, grid);
-    }
-
-    public void setPellets(LinkedList<Pellet> pellets) {
-        this.pellets = pellets;
-    }
-
-    public void setSuperPellets(Set<Pellet> superPellets) {
-        this.superPellets = superPellets;
+    public String printInfo() {
+        return getClass().getName();
     }
 }
 
 
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class FindPelletTask extends Task {
+    private Floor floor;
+
+    public FindPelletTask(MoveAction moveAction, Floor floor) {
+        super(moveAction);
+        this.floor = floor;
+    }
+
+    @Override
+    public boolean isFinished() {
+        return floor.isEmpty() || ((MoveAction) action).isReached();
+    }
+
+    @Override
+    public Action keepTargeting() {
+        floor.setTargeted(true);
+        return action;
+    }
+
+    @Override
+    public boolean isMoveTask() {
+        return true;
+    }
+
+    @Override
+    public Coord moveTarget() {
+        return floor.getCoord();
+    }
+
+    @Override
+    public String printInfo() {
+        return getClass().getName() + " Floor : " + floor.getCoord();
+    }
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+abstract class Task {
+    Action action;
+
+    Task(Action action){
+        this.action = action;
+    }
+    public abstract boolean isFinished();
+
+    public abstract Action keepTargeting();
+
+    public abstract boolean isMoveTask();
+
+    public void switchTo(Task task) {
+         this.action.changeItPacWith(task.action);
+    }
+
+    public abstract Coord moveTarget();
+
+    public abstract String printInfo();
+}
+
+
+
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
 class Config {
+    public static final Coord[] ADJACENCY = { new Coord(-1, 0), new Coord(1, 0), new Coord(0, -1), new Coord(0, 1) };
+    public static boolean MAP_WRAPS = true;
     public static final int ID_ROCK = 0;
     public static final int ID_PAPER = 1;
     public static final int ID_SCISSORS = 2;
@@ -980,70 +1445,150 @@ class Config {
 
 
 
-class Gamer {
-    private List<Pacman> pacmen = new ArrayList<>();
-    private int score;
-    public int pellets = 0;
-    private boolean timeout;
 
-    public Gamer() {
-        pacmen = new ArrayList<>();
+/**
+ * Mohamed BELMAHI created on 15/05/2020
+ */
+class Game {
+
+    private PathFinder pathfinder;
+    private final Grid grid;
+    private final Set<Floor> floors;
+    private final HashMap<Coord, Cell> cellsMap;
+    private final Cell[][] cells;
+
+    public Game(PathFinder pathfinder, Grid grid, Set<Floor> floors, HashMap<Coord, Cell> cellsMap, Cell[][] cells) {
+
+        this.pathfinder = pathfinder;
+        this.grid = grid;
+        this.floors = floors;
+        this.cellsMap = cellsMap;
+        this.cells = cells;
     }
 
-    public void addPacman(Pacman pacman) {
-        pacmen.add(pacman);
-
+    public static CrossedPathsSolution calculatePathsAndCheckIfTheyAreCrossed(PacMan pacMan1, PacMan pacMan2, PathFinder pathfinder, boolean reverseCheck) {
+        if (!reverseCheck){
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan1.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan2.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        } else {
+            List<Coord> path1 = getPath(pacMan1.getCoord(), pacMan2.getTarget(), pathfinder);
+            List<Coord> path2 = getPath(pacMan2.getCoord(), pacMan1.getTarget(), pathfinder);
+            return isCrossedPaths(path1, path2, pacMan1, pacMan2);
+        }
     }
 
-    public List<Pacman> getPacmen() {
-        return pacmen;
+    private static List<Coord> getPath(Coord source, Coord target, PathFinder pathfinder) {
+        return pathfinder
+                .from(source)
+                .to(target)
+                .findPath().path;
     }
 
-    public Stream<Pacman> getAlivePacmen() {
-        return pacmen.stream().filter(pac -> !pac.isDead());
-    }
-
-    public void turnReset() {
-        pacmen.forEach(a -> a.turnReset());
-    }
-
-
-    public void setScore(int score) {
-        this.score = score;
-    }
-
-    public String play(LinkedList<Pellet> pellets, Set<Pellet> superPellets, Grid grid) {
-        this.pacmen = getAlivePacmen().collect(Collectors.toList());
-        int size = pacmen.size();
-        Iterator<Pellet> pelletIterator = superPellets.iterator();
-        for (int i = 0; i < size; i++) {
-            if (pelletIterator.hasNext()) {
-                Pellet pellet = pelletIterator.next();
-                Pacman pacman = getNearestPacman(pellet, pacmen.stream().filter(Pacman::available));
-                pacman.setAction(new MoveAction(pellet.getCoord(), false));
+    public static CrossedPathsSolution isCrossedPaths(List<Coord> path1, List<Coord> path2, PacMan pacMan1, PacMan pacMan2) {
+        if (path1.size() > 1 && path2.size() > 1) {
+            double distanceTo = pacMan1.distanceTo(pacMan2);
+            if (distanceTo <= 1.0) {
+                if (path1.get(0).equals(path2.get(1))
+                        && path1.get(1).equals(path2.get(0))){
+                    return CrossedPathsSolution.SWITCH;
+                }
+            }else if (path1.get(1).equals(path2.get(1))) {
+                if (distanceTo <= 1.5) {
+                    return CrossedPathsSolution.WAIT;
+                } else if (distanceTo <= 2.0){
+                    return CrossedPathsSolution.SWITCH;
+                }
             }
         }
-        pacmen.stream().filter(Pacman::available).forEach(pacman -> pacman.doAction(pellets, superPellets, grid));
-
-        List<String> actionsList = new ArrayList<>();
-        getAlivePacmen().forEach(pacman -> actionsList.add(pacman.printAction()));
-
-        return String.join(" | ", actionsList);
+        return CrossedPathsSolution.NO_NEED;
     }
 
-    private Pacman getNearestPacman(Pellet pellet, Stream<Pacman> pacmen) {
-        Pacman target = null;
-        double minDistance = Integer.MAX_VALUE;
-        Iterator<Pacman> iterator = pacmen.iterator();
-        while (iterator.hasNext()) {
-            Pacman pacman = iterator.next();
-            double distance = pacman.distance(pellet.getCoord());
-            if (minDistance > distance) {
-                minDistance = distance;
-                target = pacman;
+    public static Stream<PacMan> otherPacmen(PacMan pac, Collection<PacMan> collection) {
+        return collection.stream().filter(p -> p != pac);
+    }
+
+    public static Set<Pellet> updateBasedOnPacManVisibility(Map<Coord, Pellet> newVisiblePellets, Collection<PacMan> pacManMap, Cell[][] cells) {
+        Set<Coord> visibleCoords = getAllVisibleCoords(pacManMap.stream(), cells);
+        for (Coord visibleCoord : visibleCoords) {
+            Pellet pellet = newVisiblePellets.get(visibleCoord);
+            if (pellet == null) {
+                Floor floor = (Floor) cells[visibleCoord.getX()][visibleCoord.getY()];
+                floor.noPellet();
             }
         }
-        return target;
+        return null;
+    }
+
+    public static Set<Coord> getAllVisibleCoords(Stream<PacMan> alivePacmen, Cell[][] cells) {
+        Set<Coord> visibleCoords = new HashSet<>();
+        alivePacmen.forEach(pacman -> {
+            pacman.myVisibleCells(cells).forEach(cell -> visibleCoords.add(cell.getCoord()));
+        });
+        return visibleCoords;
+    }
+
+    public static void printEndTime(long startTime, String message) {
+        long endTime = System.nanoTime();
+        long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
+        long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
+
+        System.err.println(message + " = " + durationInMillis + "ms");
+    }
+
+    public static void ifCrossedPathsDoSwitchTask(Set<PacMan> pacManSet, PathFinder pathfinder, List<Action> actionsList, Set<Floor> floors, int finalTour) {
+        List<PacMan> blockedPac = new ArrayList<>();
+
+        pacManSet.forEach(pacMan -> {
+            if (!blockedPac.contains(pacMan)) {
+                Stream<PacMan> pacManStream = Game.otherPacmen(pacMan, pacManSet);
+                Optional<PacMan> firstOne = pacManStream.filter(pac -> pac.distanceTo(pacMan) <= 2.0).findFirst();
+                if (firstOne.isPresent() && !blockedPac.contains(firstOne.get())) {
+                    CrossedPathsSolution crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, false);
+                    if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
+                        /*crossedPathsSolution = Game.calculatePathsAndCheckIfTheyAreCrossed(pacMan, firstOne.get(), pathfinder, true);
+                        if (crossedPathsSolution.equals(CrossedPathsSolution.SWITCH)) {
+                            actionsList.remove(pacMan.getCurrentAction());
+                            MoveAction moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
+                            if (moveAction != null) {
+                                actionsList.add(moveAction);
+                            } else {
+                                pacMan.setWaitTask();
+                                actionsList.add(pacMan.getCurrentAction());
+                            }
+                        } else {*/
+                            pacMan.switchTasksWith(firstOne.get());
+                            blockedPac.add(pacMan);
+                            blockedPac.add(firstOne.get());
+                        //}
+                    } else if (CrossedPathsSolution.WAIT.equals(crossedPathsSolution)) {
+                        pacMan.setWaitTask();
+                    }
+                }
+            }
+        });
+    }
+
+    public PacMan checkIfThEnemyIsAttackingMe(PacMan pacMan, List<PacMan> otherPacMen) {
+        if (otherPacMen.isEmpty()) {
+            return null;
+        }
+
+        Optional<PacMan> first = otherPacMen.stream().filter(otherPacMan -> pacMan.isVisibleToMe(otherPacMan)).sorted((o1, o2) -> {
+            return o1.distanceTo(pacMan) > o2.distanceTo(pacMan) ? 1 : -1;
+        }).findFirst();
+
+        if (!first.isPresent()) {
+            return null;
+        }
+
+        PacMan attacker = first.get();
+        System.err.println(pacMan.infoMe() + " is crossing " + attacker.infoMe());
+        if (attacker.distanceTo(pacMan) <= 3) {
+            System.err.println(pacMan.infoMe() + " under attack by " + attacker.infoMe());
+            return attacker;
+        }
+        return null;
     }
 }
 
@@ -1055,166 +1600,157 @@ class Gamer {
  **/
 class Player {
 
-    public static void main(String args[]) throws InterruptedException {
+    public static void main(String args[]) {
+        long startTime = System.nanoTime();
         Scanner in = new Scanner(System.in);
         int width = in.nextInt(); // size of the grid
         int height = in.nextInt(); // top left corner is (x=0, y=0)
         if (in.hasNextLine()) {
             in.nextLine();
         }
-
         Cell[][] cells = new Cell[width][height];
-        final Set<Floor> places = new HashSet<>();
+        HashMap<Coord, Cell> cellsMap = new HashMap<>();
+        Set<Floor> floors = new HashSet<>();
         for (int i = 0; i < height; i++) {
-            int y = i;
             String row = in.nextLine(); // one line of the grid: space " " is floor, pound "#" is wall
-
-            char[] cellsInput = row.toCharArray();
-            for (int x = 0; x < cellsInput.length; x++) {
-                Cell cell = CellPrototype.getCell(cellsInput[x], x, y);
-                cells[x][y] = cell;
-                if (cell instanceof Floor) {
-                    places.add((Floor) cell);
+            System.err.println(row);
+            char[] inputTypes = row.toCharArray();
+            for (int x = 0; x < inputTypes.length; x++) {
+                Coord coord = new Coord(x, i);
+                Cell cell = CellFactory.createCell(inputTypes[x], coord);
+                cells[x][i] = cell;
+                cellsMap.put(coord, cell);
+                if (!cell.isWall()) {
+                    floors.add((Floor) cell);
                 }
             }
         }
 
-        Grid grid = new Grid(cells, places, width, height);
+        Grid grid = new Grid(width, height, cellsMap, cells);
+        PathFinder pathfinder = new PathFinder().setGrid(grid);
 
-        //grid.printGrid();
-        Game game = new Game(grid);
-        Gamer me = new Gamer();
-        game.setMe(me);
-        Gamer opponent = new Gamer();
-        game.setOpponent(opponent);
+        Game game = new Game(pathfinder, grid, floors, cellsMap, cells);
 
-        Map<String, Pacman> pacmanMap = new HashMap<>();
+        Game.printEndTime(startTime, "PATH");
 
-        // Start First Tour -------------------------------------------------------------------------------------------
-        int tour = 1;
-        long startTime = System.nanoTime();
-        setScores(in, me, opponent);
-
-        int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
-        for (int i = 0; i < visiblePacCount; i++) {
-            int pacId = in.nextInt(); // pac number (unique within a team)
-            boolean mine = in.nextInt() != 0; // true if this pac is yours
-            int x = in.nextInt(); // position in the grid
-            int y = in.nextInt(); // position in the grid
-            String typeId = in.next(); // unused in wood leagues
-            int speedTurnsLeft = in.nextInt(); // unused in wood leagues
-            int abilityCooldown = in.nextInt(); // unused in wood leagues
-
-            Pacman pacman;
-            if (mine) {
-                pacman = new Pacman(pacId, 0, me, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
-            } else {
-                pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, 1);
-            }
-            pacmanMap.put(pacId + "-" + mine, pacman);
-        }
-
-        LinkedList<Pellet> pellets = new LinkedList<>();
-        Set<Pellet> superPellets = new HashSet<>();
+        Map<String, PacMan> pacManMap = new HashMap<>();
+        Set<Pellet> pellets = new HashSet<>();
+        Set<PacMan> myPacMen = new HashSet<>();
+        List<PacMan> otherPacMen = new ArrayList<>(5);
         Map<Coord, Pellet> pelletMap = new HashMap<>();
-        int visiblePelletCount = in.nextInt(); // all pellets in sight
-        for (int i = 0; i < visiblePelletCount; i++) {
-            int x = in.nextInt();
-            int y = in.nextInt();
-            int value = in.nextInt(); // amount of points this pellet is worth
-
-            Coord coord = new Coord(x, y);
-            Pellet pellet = new Pellet(coord, value);
-            if (value == 10) {
-                superPellets.add(pellet);
-            } else {
-                pellets.add(pellet);
-            }
-            pelletMap.put(coord, pellet);
-        }
-        game.setPellets(pellets);
-        game.setSuperPellets(superPellets);
-        System.out.println(game.play());
-        printEndTime(startTime, "First Tour");
-        // Start First Tour -------------------------------------------------------------------------------------------
-
-
-
-        // game loop after first tour
+        int tour = 0;
+        // game loop
         while (true) {
             startTime = System.nanoTime();
             tour++;
-            setScores(in, me, opponent);
-
-            visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
+            int myScore = in.nextInt();
+            int opponentScore = in.nextInt();
+            int visiblePacCount = in.nextInt(); // all your pacs and enemy pacs in sight
+            otherPacMen.clear();
             for (int i = 0; i < visiblePacCount; i++) {
                 int pacId = in.nextInt(); // pac number (unique within a team)
                 boolean mine = in.nextInt() != 0; // true if this pac is yours
-
-                //System.err.println(key);
-
                 int x = in.nextInt(); // position in the grid
                 int y = in.nextInt(); // position in the grid
                 String typeId = in.next(); // unused in wood leagues
                 int speedTurnsLeft = in.nextInt(); // unused in wood leagues
                 int abilityCooldown = in.nextInt(); // unused in wood leagues
 
-                String key = pacId + "-" + mine;
-                Pacman pacman = pacmanMap.get(key);
-                if (pacman == null) {
-                    pacman = new Pacman(pacId, 0, opponent, new Coord(x, y), PacmanType.fromInput(typeId), speedTurnsLeft, abilityCooldown, tour);
-                    pacmanMap.put(key, pacman);
-                }else {
-                    pacman.setSpeedTurnsLeft(speedTurnsLeft);
-                    pacman.setType(PacmanType.fromInput(typeId));
-                    pacman.setPosition(new Coord(x, y));
-                    pacman.setAbilityCooldown(abilityCooldown);
-                    pacman.update();
-                }
-            }
-            setDeadPacmen(pacmanMap.values(), tour);
-            visiblePelletCount = in.nextInt(); // all pellets in sight
 
-            pellets.clear();
-            superPellets.clear();
+                PacMan pacMan = pacManMap.get(pacId + "-" + mine);
+                if (pacMan != null) {
+                    pacMan.update(typeId, cells[x][y], speedTurnsLeft, abilityCooldown);
+                    if (!mine) {
+                        otherPacMen.add(pacMan);
+                    }
+                } else {
+                    pacMan = new PacMan(pacId, cells[x][y], typeId, speedTurnsLeft, abilityCooldown);
+                    pacManMap.put(pacId + "-" + mine, pacMan);
+                    if (mine) {
+                        myPacMen.add(pacMan);
+                    } else {
+                        otherPacMen.add(pacMan);
+                    }
+                }
+                Floor floor = (Floor) cells[x][y];
+                floor.noPellet();
+            }
+
+            Map<Coord, Pellet> newVisiblePellets = new HashMap<>();
+            int visiblePelletCount = in.nextInt(); // all pellets in sight
             for (int i = 0; i < visiblePelletCount; i++) {
                 int x = in.nextInt();
                 int y = in.nextInt();
                 int value = in.nextInt(); // amount of points this pellet is worth
 
-                Pellet pellet = new Pellet(new Coord(x, y), value);
-                if (value == 10) {
-                    superPellets.add(pellet);
-                } else {
+                Coord coord = new Coord(x, y);
+                Pellet pellet = pelletMap.get(coord);
+                if (pellet == null) {
+                    pellet = new Pellet(coord, (Floor) cells[x][y], value);
                     pellets.add(pellet);
+                    pelletMap.put(coord, pellet);
                 }
-            }
-            game.setPellets(pellets);
-            game.setSuperPellets(superPellets);
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
 
-            System.out.println(game.play());
-            printEndTime(startTime, "Tour number ("+tour +")");
+                newVisiblePellets.put(coord, pellet);
+            }
+            int finalTour = tour;
+            Set<PacMan> alivePacMen = myPacMen.stream().filter(pacMan -> pacMan.isAlive()).collect(Collectors.toSet());
+
+            Game.updateBasedOnPacManVisibility(newVisiblePellets, alivePacMen, cells);
+            pellets.parallelStream().forEach(Pellet::notTargeted);
+
+            //grid.printGrid();
+            Game.printEndTime(startTime, "0 - Tour number ("+tour +")");
+            List<Action> actionsList = new ArrayList<>();
+
+            Set<Pellet> finalPellets = pellets.parallelStream().filter(pellet -> pellet.isStillHere()).collect(Collectors.toSet());
+
+            alivePacMen.stream().filter(pacMan -> pacMan.hasTask()).forEach(pacMan -> {
+                boolean canSpeedUpOrSwitch = pacMan.canSpeedUpOrSwitch();
+                if (canSpeedUpOrSwitch) {
+                    actionsList.add(new SpeedAction(pacMan));
+                } else {
+                    actionsList.add(pacMan.getCurrentAction());
+                }
+            });
+            Game.printEndTime(startTime, "1 - Tour number ("+tour +")");
+            alivePacMen.stream().filter(pacMan -> !pacMan.hasTask()).forEach(pacMan -> {
+                Action moveAction = null;
+                if (pacMan.canSpeedUpOrSwitch()) {
+                    moveAction = new SpeedAction(pacMan);
+                }
+                if ((moveAction != null)){
+                    actionsList.add(moveAction);
+                }
+                else {
+                    moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
+                            .filter(pellet -> pellet.isSuper() && !pellet.isTargeted()).collect(Collectors.toSet()), pacMan);
+                    if (moveAction != null) {
+                        actionsList.add(moveAction);
+                    } else {
+                        moveAction = ActionBuilder.buildMoveAction(finalPellets.stream()
+                                .filter(pellet -> !pellet.isSuper() && !pellet.isTargeted()).collect(Collectors.toSet()), pacMan);
+                        if (moveAction != null) {
+                            actionsList.add(moveAction);
+                        }else {
+                            moveAction = ActionBuilder.buildFindPelletAction(floors.stream().filter(floor -> floor.isHidden() && floor.isNotTargetedForDiscovery()).collect(Collectors.toSet()), pacMan);
+                            if (moveAction != null) {
+                                actionsList.add(moveAction);
+                            }
+                        }
+                    }
+                }
+            });
+            Game.printEndTime(startTime, "3 - Tour number ("+tour +")");
+            Game.ifCrossedPathsDoSwitchTask(alivePacMen.stream().filter(PacMan::hasMoveTask).collect(Collectors.toSet()), pathfinder, actionsList, floors, finalTour);
+
+            String actions = String.join(" | ", actionsList.stream().map(Action::printCommand).collect(Collectors.toList()));
+            Game.printEndTime(startTime, "99 - Tour number ("+tour +")");
+            System.out.println(actions); // MOVE <pacId> <x> <y>
         }
     }
 
-    private static void setDeadPacmen(Collection<Pacman> pacmen, int currentTour) {
-        pacmen.forEach(pacman -> pacman.setDead(currentTour));
-    }
 
-    private static void printEndTime(long startTime, String message) {
-        long endTime = System.nanoTime();
-        long durationInNano = (endTime - startTime);  //Total execution time in nano seconds
-        long durationInMillis = TimeUnit.NANOSECONDS.toMillis(durationInNano);
 
-        System.err.println(message + " = " + durationInMillis + "ms");
-    }
 
-    private static void setScores(Scanner in, Gamer me, Gamer opponent) {
-        int myScore = in.nextInt();
-        me.setScore(myScore);
-        int opponentScore = in.nextInt();
-        opponent.setScore(opponentScore);
-    }
 }

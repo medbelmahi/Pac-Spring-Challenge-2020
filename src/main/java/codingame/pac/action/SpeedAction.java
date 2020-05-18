@@ -1,20 +1,24 @@
 package codingame.pac.action;
 
-import codingame.pac.PacmanType;
+import codingame.pac.PacMan;
 
-public class SpeedAction implements Action {
-  @Override
-  public ActionType getActionType() {
-      return ActionType.SPEED;
-  }
+import java.util.Arrays;
 
-    @Override
-    public String print(int id) {
-        return null;
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+public class SpeedAction extends Action {
+    public SpeedAction(PacMan pacMan) {
+        super(pacMan);
     }
 
     @Override
-  public PacmanType getType() {
-      return null;
-  }
+    public ActionType type() {
+        return ActionType.SPEED;
+    }
+
+    @Override
+    protected String msg() {
+        return "S";
+    }
 }

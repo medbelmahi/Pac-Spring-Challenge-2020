@@ -1,32 +1,23 @@
 package codingame.pac.action;
 
+import codingame.pac.PacMan;
 
-import codingame.pac.PacmanType;
+/**
+ * Mohamed BELMAHI created on 16/05/2020
+ */
+public class SwitchAction extends Action {
 
-public class SwitchAction implements Action {
-
-    private PacmanType type;
-
-    public PacmanType getNewType() {
-        return type;
-    }
-
-    public SwitchAction(PacmanType type) {
-        this.type = type;
+    public SwitchAction(PacMan pacMan) {
+        super(pacMan);
     }
 
     @Override
-    public PacmanType getType() {
-        return type;
-    }
-
-    @Override
-    public ActionType getActionType() {
+    public ActionType type() {
         return ActionType.SWITCH;
     }
 
     @Override
-    public String print(int id) {
-        return null;
+    protected String msg() {
+        return "SW-"+type().toString();
     }
 }

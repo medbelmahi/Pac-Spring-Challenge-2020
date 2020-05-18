@@ -1,29 +1,33 @@
 package codingame.pac.action;
 
-import codingame.pac.PacmanType;
+import codingame.pac.PacMan;
 
-public interface Action {
+import java.util.Arrays;
 
-    Action NO_ACTION = new Action() {
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
+public abstract class Action {
+    PacMan pacMan;
 
-        @Override
-        public PacmanType getType() {
-            return null;
-        }
+    public Action(PacMan pacMan) {
+        this.pacMan = pacMan;
+    }
 
-        @Override
-        public ActionType getActionType() {
-            return ActionType.WAIT;
-        }
+    public abstract ActionType type();
 
-        @Override
-        public String print(int id) {
-            return ActionType.WAIT.toString() + " " + id;
-        }
-    };
+    public String print(int pacId) {
+        return String.join(" ", Arrays.asList(type().toString(), String.valueOf(pacId), msg()));
+    }
+    protected abstract String msg();
 
-    public PacmanType getType();
-    public ActionType getActionType();
+    public void changeItPacWith(Action action) {
+        PacMan temp = this.pacMan;
+        this.pacMan = action.pacMan;
+        action.pacMan = temp;
+    }
 
-    String print(int id);
+    public String printCommand() {
+        return pacMan.doCommand(this);
+    }
 }

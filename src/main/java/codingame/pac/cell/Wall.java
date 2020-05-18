@@ -1,19 +1,20 @@
 package codingame.pac.cell;
 
-import codingame.pac.Coord;
-
+/**
+ * Mohamed BELMAHI created on 14/05/2020
+ */
 public class Wall extends Cell {
     public Wall(Coord coord) {
         super(coord);
     }
 
     @Override
-    public String toString() {
-        return "#";
+    public boolean isWall() {
+        return true;
     }
 
     @Override
-    public boolean isWall() {
-        return true;
+    public String toString() {
+        return "#";
     }
 }
